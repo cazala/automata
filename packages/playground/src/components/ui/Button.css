@@ -1,0 +1,73 @@
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.ui-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.ui-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ui-button.active {
+  background: rgba(74, 158, 255, 0.2);
+  border-color: #4a9eff;
+}
+
+.ui-button.primary {
+  background: linear-gradient(135deg, #4a9eff 0%, #357abd 100%);
+  border-color: #4a9eff;
+  color: #fff;
+}
+
+.ui-button.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5aa8ff 0%, #4189cc 100%);
+}
+
+.ui-button.danger:hover:not(:disabled) {
+  background: rgba(255, 60, 60, 0.2);
+  border-color: var(--color-accent-red);
+}
+
+.ui-button.warning.active {
+  background: rgba(255, 176, 32, 0.2);
+  border-color: var(--color-active-pause);
+}
+
+/* Segmented button group: shared borders, rounded ends only */
+.button-group {
+  display: inline-flex;
+}
+
+.button-group .ui-button {
+  border-radius: 0;
+  border-right-width: 0;
+}
+
+.button-group .ui-button:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.button-group .ui-button:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-right-width: 1px;
+}

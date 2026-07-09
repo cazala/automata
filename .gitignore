@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+packages/core/dist
+packages/playground/dist
+.pnpm-store
+.pnpm-store/
+.DS_Store
+**/.DS_Store
+*.log

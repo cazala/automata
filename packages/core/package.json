@@ -1,0 +1,47 @@
+{
+  "name": "@cazala/automata",
+  "version": "0.1.0",
+  "description": "WebGPU cellular-automata library. Configure and simulate elementary (1D Wolfram), 2D life-like (Conway), and neural cellular automata with real-time parameter tuning.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "cellular-automata",
+    "webgpu",
+    "gpu-compute",
+    "conway",
+    "game-of-life",
+    "elementary-ca",
+    "wolfram",
+    "neural-cellular-automata",
+    "simulation",
+    "typescript"
+  ],
+  "author": "cazala",
+  "license": "MIT",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.0",
+    "@webgpu/types": "^0.1.64",
+    "rollup": "^4.0.0",
+    "tslib": "^2.6.0",
+    "typescript": "~5.6.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
