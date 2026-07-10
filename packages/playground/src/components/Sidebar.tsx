@@ -342,20 +342,16 @@ export function Sidebar() {
         </CollapsibleSection>
 
         <CollapsibleSection title="Appearance" defaultOpen={false}>
-          {config.type !== "neural" && (
-            <>
-              <ColorInput
-                label="On color"
-                value={config.render.colorOn}
-                onChange={(v) => dispatch(setRender({ colorOn: v }))}
-              />
-              <ColorInput
-                label="Off color"
-                value={config.render.colorOff}
-                onChange={(v) => dispatch(setRender({ colorOff: v }))}
-              />
-            </>
-          )}
+          <ColorInput
+            label="On color"
+            value={config.render.colorOn}
+            onChange={(v) => dispatch(setRender({ colorOn: v }))}
+          />
+          <ColorInput
+            label="Off color"
+            value={config.render.colorOff}
+            onChange={(v) => dispatch(setRender({ colorOff: v }))}
+          />
           <ColorInput
             label="Background"
             value={config.render.colorBg}

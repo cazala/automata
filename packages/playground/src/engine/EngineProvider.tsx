@@ -49,19 +49,21 @@ export function useEngine(): EngineApi {
 const MIN_CELLS = 16;
 const MAX_CELLS = 2048;
 
+/**
+ * Initial cell size in CSS pixels. The grid is sized so every display boots at
+ * this cell size regardless of resolution (a 2560px-wide desktop gets ~2048
+ * cells, a 390px-wide phone ~312), capped at MAX_CELLS on huge screens.
+ * ensureGridCovers() keeps the coverage as the user zooms/resizes after that.
+ */
+const CELL_PX = 1;
+
 const clampCells = (n: number) =>
   Math.max(MIN_CELLS, Math.min(MAX_CELLS, Math.round(n)));
 
-/**
- * Size the grid for the fully-zoomed-out view: the long canvas axis gets
- * MAX_CELLS cells, so the initial zoom (set by coverGrid) is the engine's
- * minimum zoom. ensureGridCovers() keeps the coverage as the user zooms/resizes.
- */
 function gridForCanvas(cssW: number, cssH: number) {
-  const minZoom = Math.max(cssW, cssH) / MAX_CELLS;
   return {
-    width: clampCells(Math.ceil(cssW / minZoom)),
-    height: clampCells(Math.ceil(cssH / minZoom)),
+    width: clampCells(Math.ceil(cssW / CELL_PX)),
+    height: clampCells(Math.ceil(cssH / CELL_PX)),
   };
 }
 

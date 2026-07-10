@@ -5,12 +5,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Dark scrim strongest behind the centered card, easing off toward the
+     edges so the live demo stays visible there. */
   background: radial-gradient(
     ellipse at center,
-    rgba(5, 5, 10, 0.45) 0%,
-    rgba(5, 5, 10, 0.82) 70%
+    rgba(5, 5, 10, 0.96) 0%,
+    rgba(5, 5, 10, 0.88) 30%,
+    rgba(5, 5, 10, 0.55) 55%,
+    rgba(5, 5, 10, 0.15) 85%
   );
-  backdrop-filter: blur(2px);
+  /* backdrop-filter: blur(1px); */
+  /* Splash screen: no text selection, tap flashes, or double-tap zoom. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .homepage-card {

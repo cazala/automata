@@ -722,10 +722,18 @@ export class Engine {
   /** Notify the engine the canvas CSS size changed. */
   setSize(cssWidth: number, cssHeight: number): void {
     const dpr = this.dpr();
-    this.canvas.width = Math.max(1, Math.floor(cssWidth * dpr));
-    this.canvas.height = Math.max(1, Math.floor(cssHeight * dpr));
+    const w = Math.max(1, Math.floor(cssWidth * dpr));
+    const h = Math.max(1, Math.floor(cssHeight * dpr));
+    // Assigning canvas.width/height clears the canvas even for equal values,
+    // so skip no-ops and repaint immediately after a real change — otherwise
+    // the canvas shows a blank frame until the next rAF (visible as a flash
+    // when mobile browser chrome collapses/expands on touch).
+    if (w === this.canvas.width && h === this.canvas.height) return;
+    this.canvas.width = w;
+    this.canvas.height = h;
     this.view.setSize(cssWidth, cssHeight);
     this.updateZoomLimits();
+    if (this.initialized) this.render();
   }
 
   /** Zooming out further than this would need a grid beyond maxCells to cover. */
