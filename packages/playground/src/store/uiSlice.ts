@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { applyWormsPreset, loadConfig } from "./configSlice";
+import { loadConfig } from "./configSlice";
 
 export type Tool = "paint" | "erase" | "pan";
 export type ModalKind = null | "save" | "load";
@@ -51,16 +51,12 @@ const uiSlice = createSlice({
       state.initNonce++;
     },
   },
-  // Presets and session loads rewrite the initial-state config wholesale, so the
-  // grid has to be re-seeded even when no structural param changed.
+  // Session loads rewrite the initial-state config wholesale, so the grid has
+  // to be re-seeded even when no structural param changed.
   extraReducers: (builder) => {
-    builder
-      .addCase(applyWormsPreset, (state) => {
-        state.initNonce++;
-      })
-      .addCase(loadConfig, (state) => {
-        state.initNonce++;
-      });
+    builder.addCase(loadConfig, (state) => {
+      state.initNonce++;
+    });
   },
 });
 

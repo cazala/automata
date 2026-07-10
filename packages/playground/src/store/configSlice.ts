@@ -4,7 +4,7 @@ import { WORMS_GAUSS_WIDTH, WORMS_KERNEL } from "@cazala/automata";
 /** Activation ids, matching the Neural automaton's `activation` param. */
 export const ACTIVATION_GAUSSIAN = 3;
 
-export type AutomatonType = "life" | "elementary" | "neural";
+export type AutomatonType = "life" | "elementary" | "neural" | "pokemon";
 
 export interface LifeConfig {
   birth: number;
@@ -32,7 +32,12 @@ export interface NeuralConfig {
   kCorner: number;
 }
 
-/** Grid dimensions are derived from the canvas size; only wrap is user-facing. */
+export interface PokemonConfig {
+  /** Neighbours of one attacking type needed to convert a cell (1-8). */
+  threshold: number;
+}
+
+/** Grid dimensions derive from the canvas; edges always wrap (toroidal). */
 export interface GridConfig {
   wrap: boolean;
 }
@@ -57,6 +62,7 @@ export interface ConfigState {
   life: LifeConfig;
   elementary: ElementaryConfig;
   neural: NeuralConfig;
+  pokemon: PokemonConfig;
   grid: GridConfig;
   render: RenderConfigUI;
   init: InitConfig;
@@ -86,6 +92,7 @@ export const defaultConfig: ConfigState = {
     kEdge: WORMS_KERNEL.edge,
     kCorner: WORMS_KERNEL.corner,
   },
+  pokemon: { threshold: 2 },
   grid: { wrap: true },
   render: {
     colorOn: "#c8d8ff",
@@ -113,6 +120,9 @@ const configSlice = createSlice({
     setNeural(state, action: PayloadAction<Partial<NeuralConfig>>) {
       Object.assign(state.neural, action.payload);
     },
+    setPokemon(state, action: PayloadAction<Partial<PokemonConfig>>) {
+      Object.assign(state.pokemon, action.payload);
+    },
     setGrid(state, action: PayloadAction<Partial<GridConfig>>) {
       Object.assign(state.grid, action.payload);
     },
@@ -128,19 +138,6 @@ const configSlice = createSlice({
     loadConfig(_state, action: PayloadAction<ConfigState>) {
       return action.payload;
     },
-    /** Jump straight to the classic "neural worms" rule. */
-    applyWormsPreset(state) {
-      state.type = "neural";
-      state.neural.mode = "direct";
-      state.neural.activation = ACTIVATION_GAUSSIAN;
-      state.neural.gaussWidth = WORMS_GAUSS_WIDTH;
-      state.neural.kCenter = WORMS_KERNEL.center;
-      state.neural.kEdge = WORMS_KERNEL.edge;
-      state.neural.kCorner = WORMS_KERNEL.corner;
-      // Worms emerge from a noisy field, not from sparse seeds.
-      state.init.mode = "random";
-      state.init.density = 0.5;
-    },
   },
 });
 
@@ -149,12 +146,12 @@ export const {
   setLife,
   setElementaryRule,
   setNeural,
+  setPokemon,
   setGrid,
   setRender,
   setInit,
   setStepsPerSecond,
   loadConfig,
-  applyWormsPreset,
 } = configSlice.actions;
 
 export default configSlice.reducer;

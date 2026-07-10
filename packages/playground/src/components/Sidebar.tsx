@@ -1,4 +1,4 @@
-import { countsToMask, maskToCounts, WORMS_KERNEL } from "@cazala/automata";
+import { countsToMask, maskToCounts, POKEMON_TYPES, WORMS_KERNEL } from "@cazala/automata";
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
 import {
@@ -6,15 +6,16 @@ import {
   setLife,
   setElementaryRule,
   setNeural,
-  setGrid,
+  setPokemon,
   setRender,
   setInit,
-  applyWormsPreset,
   ACTIVATION_GAUSSIAN,
   type AutomatonType,
   type InitMode,
+  type NeuralConfig,
   type NeuralModeUI,
 } from "../store/configSlice";
+import { requestInit } from "../store/uiSlice";
 import { CollapsibleSection } from "./ui/CollapsibleSection";
 import { Slider } from "./ui/Slider";
 import { Dropdown } from "./ui/Dropdown";
@@ -35,6 +36,83 @@ const LIFE_PRESETS: Record<string, { birth: number[]; survival: number[] }> = {
 };
 
 const ELEMENTARY_PRESETS = [30, 54, 60, 90, 110, 150, 184, 250];
+
+/**
+ * Neural CA presets: bundles of the direct-mode kernel/activation knobs (plus
+ * one showcasing the random-MLP substrate), each with the initial state it
+ * develops best from. Verified conv->activation pattern rules.
+ */
+const NEURAL_PRESETS: Record<
+  string,
+  {
+    label: string;
+    values: Partial<NeuralConfig>;
+    init: { mode: InitMode; density: number };
+  }
+> = {
+  worms: {
+    label: "Worms",
+    values: {
+      mode: "direct",
+      activation: ACTIVATION_GAUSSIAN,
+      gaussWidth: 0.6,
+      kCenter: WORMS_KERNEL.center,
+      kEdge: WORMS_KERNEL.edge,
+      kCorner: WORMS_KERNEL.corner,
+    },
+    init: { mode: "random", density: 0.2 },
+  },
+  mitosis: {
+    label: "Mitosis",
+    values: {
+      mode: "direct",
+      activation: ACTIVATION_GAUSSIAN,
+      gaussWidth: 1.3,
+      kCenter: 0.4,
+      kEdge: 0.88,
+      kCorner: -0.94,
+    },
+    init: { mode: "noise", density: 0.5 },
+  },
+  mosaic: {
+    label: "Mosaic",
+    values: {
+      mode: "direct",
+      activation: ACTIVATION_GAUSSIAN,
+      gaussWidth: 0.6,
+      kCenter: 0.66,
+      kEdge: 0.9,
+      kCorner: -0.68,
+    },
+    init: { mode: "noise", density: 0.5 },
+  },
+  network: {
+    label: "Random network",
+    values: {
+      mode: "network",
+      activation: 1, // tanh
+      updateRate: 0.5,
+      stepSize: 0.1,
+    },
+    init: { mode: "random", density: 0.2 },
+  },
+};
+
+const approx = (a: number, b: number) => Math.abs(a - b) < 0.005;
+
+function detectNeuralPreset(neural: NeuralConfig): string {
+  for (const [key, preset] of Object.entries(NEURAL_PRESETS)) {
+    const v = preset.values;
+    const matches = Object.entries(v).every(([k, val]) => {
+      const cur = neural[k as keyof NeuralConfig];
+      return typeof val === "number" && typeof cur === "number"
+        ? approx(cur, val)
+        : cur === val;
+    });
+    if (matches) return key;
+  }
+  return "custom";
+}
 
 function NeighborMask({
   label,
@@ -121,6 +199,7 @@ export function Sidebar() {
             { value: "life", label: "Life-like (2D)" },
             { value: "elementary", label: "Elementary (1D)" },
             { value: "neural", label: "Neural CA" },
+            { value: "pokemon", label: "Pokemon" },
           ]}
         />
 
@@ -188,6 +267,24 @@ export function Sidebar() {
           <>
             <CollapsibleSection title="Neural CA">
               <Dropdown
+                label="Preset"
+                value={detectNeuralPreset(config.neural)}
+                onChange={(v) => {
+                  const p = NEURAL_PRESETS[v];
+                  if (!p) return;
+                  dispatch(setNeural(p.values));
+                  dispatch(setInit(p.init));
+                  dispatch(requestInit());
+                }}
+                options={[
+                  ...Object.entries(NEURAL_PRESETS).map(([value, p]) => ({
+                    value,
+                    label: p.label,
+                  })),
+                  { value: "custom", label: "Custom" },
+                ]}
+              />
+              <Dropdown
                 label="Mode"
                 value={config.neural.mode}
                 onChange={(v) => dispatch(setNeural({ mode: v as NeuralModeUI }))}
@@ -226,9 +323,6 @@ export function Sidebar() {
                   formatValue={(v) => v.toFixed(2)}
                 />
               )}
-              <Button variant="primary" onClick={() => dispatch(applyWormsPreset())}>
-                Worms preset
-              </Button>
             </CollapsibleSection>
 
             <CollapsibleSection title="Convolution kernel">
@@ -332,26 +426,48 @@ export function Sidebar() {
           </>
         )}
 
-        <CollapsibleSection title="Grid" defaultOpen={false}>
-          <Checkbox
-            label="Wrap edges (toroidal)"
-            checked={config.grid.wrap}
-            onChange={(c) => dispatch(setGrid({ wrap: c }))}
-          />
-          <Button onClick={engine.resetView}>Reset view</Button>
-        </CollapsibleSection>
+        {config.type === "pokemon" && (
+          <CollapsibleSection title="Pokemon battle">
+            <Slider
+              label="Conversion threshold"
+              value={config.pokemon.threshold}
+              onChange={(v) => dispatch(setPokemon({ threshold: v }))}
+              min={1}
+              max={8}
+              step={1}
+            />
+            <Field>
+              <label>Types</label>
+              <div className="pokemon-legend">
+                {POKEMON_TYPES.map((t) => (
+                  <span key={t.name} className="pokemon-type">
+                    <span
+                      className="pokemon-swatch"
+                      style={{ background: `rgb(${t.color.join(",")})` }}
+                    />
+                    {t.name}
+                  </span>
+                ))}
+              </div>
+            </Field>
+          </CollapsibleSection>
+        )}
 
         <CollapsibleSection title="Appearance" defaultOpen={false}>
-          <ColorInput
-            label="On color"
-            value={config.render.colorOn}
-            onChange={(v) => dispatch(setRender({ colorOn: v }))}
-          />
-          <ColorInput
-            label="Off color"
-            value={config.render.colorOff}
-            onChange={(v) => dispatch(setRender({ colorOff: v }))}
-          />
+          {config.type !== "pokemon" && (
+            <>
+              <ColorInput
+                label="On color"
+                value={config.render.colorOn}
+                onChange={(v) => dispatch(setRender({ colorOn: v }))}
+              />
+              <ColorInput
+                label="Off color"
+                value={config.render.colorOff}
+                onChange={(v) => dispatch(setRender({ colorOff: v }))}
+              />
+            </>
+          )}
           <ColorInput
             label="Background"
             value={config.render.colorBg}
@@ -364,6 +480,7 @@ export function Sidebar() {
           />
         </CollapsibleSection>
 
+        {config.type !== "pokemon" && (
         <CollapsibleSection title="Initial state" defaultOpen={false}>
           <Dropdown
             label="Pattern"
@@ -392,6 +509,7 @@ export function Sidebar() {
             Apply initial state
           </Button>
         </CollapsibleSection>
+        )}
       </div>
     </div>
   );

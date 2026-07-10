@@ -10,6 +10,9 @@ import {
   Life,
   Elementary,
   Neural,
+  Pokemon,
+  POKEMON_TYPES,
+  POKEMON_TYPE_COUNT,
   type Activation,
   type Automaton,
   type RenderConfig,
@@ -93,10 +96,24 @@ function buildAutomaton(config: ConfigState): Automaton {
           corner: config.neural.kCorner,
         },
       });
+    case "pokemon":
+      return new Pokemon({ threshold: config.pokemon.threshold });
   }
 }
 
 function renderConfigFrom(config: ConfigState): Partial<RenderConfig> {
+  if (config.type === "pokemon") {
+    // Cells carry their own palette rgb; a black->white ramp makes the
+    // channel-wise mix an identity so the type colors display verbatim.
+    return {
+      colorOn: { r: 1, g: 1, b: 1, a: 1 },
+      colorOff: { r: 0, g: 0, b: 0, a: 1 },
+      colorBg: hexToRgba(config.render.colorBg),
+      showGrid: config.render.showGrid,
+      gridThreshold: 6,
+      colorMode: 1,
+    };
+  }
   return {
     colorOn: hexToRgba(config.render.colorOn),
     colorOff: hexToRgba(config.render.colorOff),
@@ -137,6 +154,23 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       engine.setCell(cx, 0, [1]);
       return;
     }
+
+    if (cfg.type === "pokemon") {
+      // Every cell starts as a random type; the field self-organizes from noise.
+      const data = new Float32Array(width * height * 4);
+      for (let i = 0; i < width * height; i++) {
+        const t = Math.floor(Math.random() * POKEMON_TYPE_COUNT);
+        const [r, g, b] = POKEMON_TYPES[t].color;
+        const base = i * 4;
+        data[base] = r / 255;
+        data[base + 1] = g / 255;
+        data[base + 2] = b / 255;
+        data[base + 3] = t;
+      }
+      engine.setCells(data);
+      return;
+    }
+
     if (cfg.init.mode === "clear") return;
 
     if (cfg.type === "neural") {
@@ -392,6 +426,12 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     engineRef.current?.setWrap(config.grid.wrap);
   }, [config.grid.wrap]);
+
+  // Pokemon realtime params.
+  useEffect(() => {
+    const a = automatonRef.current;
+    if (a instanceof Pokemon) a.setThreshold(config.pokemon.threshold);
+  }, [config.pokemon.threshold]);
 
   // Steps per second.
   useEffect(() => {

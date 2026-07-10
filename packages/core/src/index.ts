@@ -19,6 +19,8 @@ export type { LifeOptions } from "./automata/life";
 export { Elementary } from "./automata/elementary";
 export type { ElementaryOptions } from "./automata/elementary";
 export { Neural, WORMS_KERNEL, WORMS_GAUSS_WIDTH } from "./automata/neural";
+export { Pokemon, POKEMON_TYPES, POKEMON_TYPE_COUNT } from "./automata/pokemon";
+export type { PokemonOptions, PokemonTypeInfo } from "./automata/pokemon";
 export type {
   NeuralOptions,
   Activation,
