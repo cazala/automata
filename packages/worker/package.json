@@ -1,0 +1,16 @@
+{
+  "name": "worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "types": "wrangler types src/worker-configuration.d.ts",
+    "typecheck": "pnpm run types && tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "~5.6.3",
+    "wrangler": "4.107.1"
+  }
+}
