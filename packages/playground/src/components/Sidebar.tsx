@@ -637,6 +637,20 @@ export function Sidebar() {
               max={3}
               step={1}
             />
+            {/* Below ~4 the mosaic degrades toward per-cell noise, which
+                deadlocks at threshold 3 (measured: size 3 halves the battle
+                activity, size 2 kills it entirely). */}
+            <Slider
+              label="Region size"
+              value={config.pokemon.regionSize}
+              onChange={(v) => {
+                dispatch(setPokemon({ regionSize: v }));
+                dispatch(requestInit()); // re-seed with the new mosaic scale
+              }}
+              min={4}
+              max={128}
+              step={4}
+            />
             <PokemonLegend />
           </CollapsibleSection>
         )}

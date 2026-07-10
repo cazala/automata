@@ -65,7 +65,7 @@ const MAX_CELLS = 2048;
  * cells, a 390px-wide phone ~312), capped at MAX_CELLS on huge screens.
  * ensureGridCovers() keeps the coverage as the user zooms/resizes after that.
  */
-const CELL_PX = 1;
+const CELL_PX = 1.5;
 
 const clampCells = (n: number) =>
   Math.max(MIN_CELLS, Math.min(MAX_CELLS, Math.round(n)));
@@ -285,23 +285,61 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (cfg.type === "pokemon") {
-      // Every cell starts as a random enabled type; the field self-organizes
-      // from noise. Disabled types can never re-emerge, since cells only ever
+      // Start as a voronoi mosaic of single-type regions (jittered-grid Worley
+      // sites) instead of per-cell noise: uncorrelated noise deadlocks at
+      // threshold 3 because no cell ever sees 3 aligned attackers, while
+      // coherent domains give straight borders where the battle rule stays
+      // active. Disabled types can never re-emerge, since cells only ever
       // convert to a neighbour's type.
       const pool: number[] = [];
       for (let t = 0; t < POKEMON_TYPE_COUNT; t++) {
         if (cfg.pokemon.enabled[t] ?? true) pool.push(t);
       }
       if (pool.length === 0) pool.push(0);
+
+      const S = Math.max(2, Math.floor(cfg.pokemon.regionSize));
+      const bw = Math.max(1, Math.ceil(width / S));
+      const bh = Math.max(1, Math.ceil(height / S));
+      const siteX = new Float32Array(bw * bh);
+      const siteY = new Float32Array(bw * bh);
+      const siteT = new Uint8Array(bw * bh);
+      for (let i = 0; i < bw * bh; i++) {
+        siteX[i] = ((i % bw) + Math.random()) * S;
+        siteY[i] = (Math.floor(i / bw) + Math.random()) * S;
+        siteT[i] = pool[Math.floor(Math.random() * pool.length)];
+      }
+
       const data = new Float32Array(width * height * 4);
-      for (let i = 0; i < width * height; i++) {
-        const t = pool[Math.floor(Math.random() * pool.length)];
-        const [r, g, b] = POKEMON_TYPES[t].color;
-        const base = i * 4;
-        data[base] = r / 255;
-        data[base + 1] = g / 255;
-        data[base + 2] = b / 255;
-        data[base + 3] = t;
+      for (let y = 0; y < height; y++) {
+        const by = Math.floor(y / S);
+        for (let x = 0; x < width; x++) {
+          const bx = Math.floor(x / S);
+          let best = Infinity;
+          let t = pool[0];
+          for (let oy = -1; oy <= 1; oy++) {
+            for (let ox = -1; ox <= 1; ox++) {
+              const nbx = (bx + ox + bw) % bw;
+              const nby = (by + oy + bh) % bh;
+              const i = nby * bw + nbx;
+              // Toroidal deltas so regions tile seamlessly across the wrap.
+              let dx = x - siteX[i];
+              let dy = y - siteY[i];
+              dx -= Math.round(dx / width) * width;
+              dy -= Math.round(dy / height) * height;
+              const d = dx * dx + dy * dy;
+              if (d < best) {
+                best = d;
+                t = siteT[i];
+              }
+            }
+          }
+          const [r, g, b] = POKEMON_TYPES[t].color;
+          const base = (y * width + x) * 4;
+          data[base] = r / 255;
+          data[base + 1] = g / 255;
+          data[base + 2] = b / 255;
+          data[base + 3] = t;
+        }
       }
       engine.setCells(data);
       return;

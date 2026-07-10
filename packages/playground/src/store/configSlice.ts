@@ -54,6 +54,8 @@ export interface PokemonConfig {
   threshold: number;
   /** Per-type participation flags (indexed like POKEMON_TYPES). */
   enabled: boolean[];
+  /** Approximate size (cells) of the voronoi regions the grid starts as. */
+  regionSize: number;
 }
 
 /** Gray-Scott reaction-diffusion parameters (all realtime). */
@@ -142,8 +144,9 @@ export const defaultConfig: ConfigState = {
     kCorner: WORMS_KERNEL.corner,
   },
   pokemon: {
-    threshold: 2,
+    threshold: 3,
     enabled: new Array(POKEMON_TYPE_COUNT).fill(true),
+    regionSize: 48,
   },
   rd: { feed: 0.0545, kill: 0.062, diffU: 1.0, diffV: 0.5, dt: 1.0 },
   brain: { birth: 2 },
