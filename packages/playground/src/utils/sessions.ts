@@ -1,4 +1,4 @@
-import { defaultConfig, type ConfigState } from "../store/configSlice";
+import { sanitizeConfig, type ConfigState } from "../store/configSlice";
 
 export const SESSION_VERSION = 2;
 const INDEX_KEY = "automata-sessions-index";
@@ -67,22 +67,12 @@ export function deleteSession(id: string): void {
 }
 
 /**
- * Fill in any config keys a session predates. v1 sessions carry grid.width/height
- * (now derived from the canvas) and lack the neural mode/kernel params; unknown
- * keys are harmless, missing ones are not.
+ * Fill in any config keys a session predates and normalize old values into the
+ * current playable automata/parameter ranges.
  */
 function migrate(data: SessionData): SessionData {
   const c = data.config ?? ({} as Partial<ConfigState>);
-  data.config = {
-    ...defaultConfig,
-    ...c,
-    life: { ...defaultConfig.life, ...c.life },
-    elementary: { ...defaultConfig.elementary, ...c.elementary },
-    neural: { ...defaultConfig.neural, ...c.neural },
-    grid: { ...defaultConfig.grid, ...c.grid },
-    render: { ...defaultConfig.render, ...c.render },
-    init: { ...defaultConfig.init, ...c.init },
-  };
+  data.config = sanitizeConfig(c);
   data.version = SESSION_VERSION;
   return data;
 }

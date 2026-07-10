@@ -13,14 +13,28 @@ export function maxStepsPerSecond(type: AutomatonType): number {
   return type === "rd" ? 1000 : 200;
 }
 
+/** Speed to apply when an automaton is selected. */
+export function defaultStepsPerSecond(type: AutomatonType): number {
+  switch (type) {
+    case "pokemon":
+      return 100;
+    case "rd":
+      return 1000;
+    case "lenia":
+      return 15;
+    case "life":
+    case "elementary":
+    case "neural":
+      return 120;
+  }
+}
+
 export type AutomatonType =
   | "life"
   | "elementary"
   | "neural"
   | "pokemon"
   | "rd"
-  | "brain"
-  | "cyclic"
   | "lenia";
 
 export interface LifeConfig {
@@ -67,16 +81,6 @@ export interface RDConfig {
   dt: number;
 }
 
-export interface BrainConfig {
-  /** Firing neighbours required to fire (default 2). */
-  birth: number;
-}
-
-export interface CyclicConfig {
-  states: number;
-  threshold: number;
-}
-
 export interface LeniaConfig {
   radius: number;
   mu: number;
@@ -111,8 +115,6 @@ export interface ConfigState {
   neural: NeuralConfig;
   pokemon: PokemonConfig;
   rd: RDConfig;
-  brain: BrainConfig;
-  cyclic: CyclicConfig;
   lenia: LeniaConfig;
   grid: GridConfig;
   render: RenderConfigUI;
@@ -131,7 +133,7 @@ export const defaultConfig: ConfigState = {
   elementary: { rule: 30 },
   neural: {
     mode: "direct",
-    channels: 8,
+    channels: 6,
     hidden: 32,
     activation: ACTIVATION_GAUSSIAN,
     updateRate: 0.5,
@@ -146,12 +148,10 @@ export const defaultConfig: ConfigState = {
   pokemon: {
     threshold: 3,
     enabled: new Array(POKEMON_TYPE_COUNT).fill(true),
-    regionSize: 48,
+    regionSize: 4,
   },
   rd: { feed: 0.0545, kill: 0.062, diffU: 1.0, diffV: 0.5, dt: 1.0 },
-  brain: { birth: 2 },
-  cyclic: { states: 14, threshold: 1 },
-  lenia: { radius: 10, mu: 0.15, sigma: 0.023, dt: 0.1 },
+  lenia: { radius: 8, mu: 0.15, sigma: 0.023, dt: 0.1 },
   grid: { wrap: true },
   render: {
     colorOn: "#c8d8ff",
@@ -163,24 +163,98 @@ export const defaultConfig: ConfigState = {
   stepsPerSecond: 120,
 };
 
+const AUTOMATON_TYPES = new Set<AutomatonType>([
+  "life",
+  "elementary",
+  "neural",
+  "pokemon",
+  "rd",
+  "lenia",
+]);
+
+function isAutomatonType(type: unknown): type is AutomatonType {
+  return typeof type === "string" && AUTOMATON_TYPES.has(type as AutomatonType);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function finite(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function constrainNeural(neural: NeuralConfig): void {
+  neural.mode = "direct";
+  neural.channels = 6;
+  neural.activation = ACTIVATION_GAUSSIAN;
+  neural.gaussWidth = clamp(finite(neural.gaussWidth, WORMS_GAUSS_WIDTH), 0.6, 0.7);
+  neural.kCenter = clamp(finite(neural.kCenter, WORMS_KERNEL.center), -1, -0.5);
+  neural.kEdge = clamp(finite(neural.kEdge, WORMS_KERNEL.edge), -1.5, -0.9);
+  neural.kCorner = clamp(finite(neural.kCorner, WORMS_KERNEL.corner), 0.4, 0.7);
+}
+
+function constrainPokemon(pokemon: PokemonConfig): void {
+  pokemon.threshold = Math.round(clamp(finite(pokemon.threshold, 3), 1, 3));
+  pokemon.regionSize = clamp(finite(pokemon.regionSize, 4), 4, 128);
+  if (!Array.isArray(pokemon.enabled) || pokemon.enabled.length !== POKEMON_TYPE_COUNT) {
+    pokemon.enabled = new Array(POKEMON_TYPE_COUNT).fill(true);
+  }
+}
+
+function constrainRD(rd: RDConfig): void {
+  rd.feed = clamp(finite(rd.feed, 0.0545), 0.03, 0.07);
+  rd.kill = clamp(finite(rd.kill, 0.062), 0.0575, 0.065);
+  rd.diffU = clamp(finite(rd.diffU, 1.0), 0.7, 1.1);
+  rd.diffV = clamp(finite(rd.diffV, 0.5), 0.25, 0.7);
+  rd.dt = 1;
+}
+
+function constrainLenia(lenia: LeniaConfig): void {
+  lenia.radius = Math.round(clamp(finite(lenia.radius, 8), 8, 12));
+  lenia.mu = clamp(finite(lenia.mu, 0.15), 0.1, 0.3);
+  lenia.sigma = clamp(finite(lenia.sigma, 0.023), 0.02, 0.06);
+  lenia.dt = 0.1;
+}
+
+export function sanitizeConfig(
+  input: (Partial<ConfigState> & { type?: unknown }) = {}
+): ConfigState {
+  const type = isAutomatonType(input.type) ? input.type : defaultConfig.type;
+  const rawSteps = input.stepsPerSecond;
+  const stepsPerSecond =
+    typeof rawSteps === "number" && Number.isFinite(rawSteps)
+      ? clamp(rawSteps, 1, maxStepsPerSecond(type))
+      : defaultStepsPerSecond(type);
+
+  const next: ConfigState = {
+    type,
+    life: { ...defaultConfig.life, ...input.life },
+    elementary: { ...defaultConfig.elementary, ...input.elementary },
+    neural: { ...defaultConfig.neural, ...input.neural },
+    pokemon: { ...defaultConfig.pokemon, ...input.pokemon },
+    rd: { ...defaultConfig.rd, ...input.rd },
+    lenia: { ...defaultConfig.lenia, ...input.lenia },
+    grid: { ...defaultConfig.grid, ...input.grid },
+    render: { ...defaultConfig.render, ...input.render },
+    init: { ...defaultConfig.init, ...input.init },
+    stepsPerSecond,
+  };
+
+  constrainNeural(next.neural);
+  constrainPokemon(next.pokemon);
+  constrainRD(next.rd);
+  constrainLenia(next.lenia);
+  return next;
+}
+
 const configSlice = createSlice({
   name: "config",
   initialState: defaultConfig,
   reducers: {
     setType(state, action: PayloadAction<AutomatonType>) {
-      // Speed caps differ per automaton (RD integrates in tiny steps, so it
-      // gets a higher ceiling). When the cap changes across a switch, scale
-      // the current speed proportionally (200-of-200 -> 1000-of-1000); when
-      // the cap is the same, leave the value untouched.
-      const oldMax = maxStepsPerSecond(state.type);
-      const newMax = maxStepsPerSecond(action.payload);
-      if (oldMax !== newMax) {
-        state.stepsPerSecond = Math.max(
-          1,
-          Math.min(newMax, Math.round((state.stepsPerSecond * newMax) / oldMax))
-        );
-      }
       state.type = action.payload;
+      state.stepsPerSecond = defaultStepsPerSecond(action.payload);
     },
     setLife(state, action: PayloadAction<Partial<LifeConfig>>) {
       Object.assign(state.life, action.payload);
@@ -190,9 +264,11 @@ const configSlice = createSlice({
     },
     setNeural(state, action: PayloadAction<Partial<NeuralConfig>>) {
       Object.assign(state.neural, action.payload);
+      constrainNeural(state.neural);
     },
     setPokemon(state, action: PayloadAction<Partial<PokemonConfig>>) {
       Object.assign(state.pokemon, action.payload);
+      constrainPokemon(state.pokemon);
     },
     /**
      * Flip one type's participation. Lives in the reducer (not the component)
@@ -209,15 +285,11 @@ const configSlice = createSlice({
     },
     setRD(state, action: PayloadAction<Partial<RDConfig>>) {
       Object.assign(state.rd, action.payload);
-    },
-    setBrain(state, action: PayloadAction<Partial<BrainConfig>>) {
-      Object.assign(state.brain, action.payload);
-    },
-    setCyclic(state, action: PayloadAction<Partial<CyclicConfig>>) {
-      Object.assign(state.cyclic, action.payload);
+      constrainRD(state.rd);
     },
     setLenia(state, action: PayloadAction<Partial<LeniaConfig>>) {
       Object.assign(state.lenia, action.payload);
+      constrainLenia(state.lenia);
     },
     setGrid(state, action: PayloadAction<Partial<GridConfig>>) {
       Object.assign(state.grid, action.payload);
@@ -229,10 +301,10 @@ const configSlice = createSlice({
       Object.assign(state.init, action.payload);
     },
     setStepsPerSecond(state, action: PayloadAction<number>) {
-      state.stepsPerSecond = action.payload;
+      state.stepsPerSecond = clamp(action.payload, 1, maxStepsPerSecond(state.type));
     },
     loadConfig(_state, action: PayloadAction<ConfigState>) {
-      return action.payload;
+      return sanitizeConfig(action.payload);
     },
   },
 });
@@ -245,8 +317,6 @@ export const {
   setPokemon,
   togglePokemonType,
   setRD,
-  setBrain,
-  setCyclic,
   setLenia,
   setGrid,
   setRender,

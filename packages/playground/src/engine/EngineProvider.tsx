@@ -14,9 +14,6 @@ import {
   POKEMON_TYPES,
   POKEMON_TYPE_COUNT,
   ReactionDiffusion,
-  BriansBrain,
-  Cyclic,
-  cyclicColor,
   Lenia,
   type Activation,
   type Automaton,
@@ -113,13 +110,6 @@ function buildAutomaton(config: ConfigState): Automaton {
         diffV: config.rd.diffV,
         dt: config.rd.dt,
       });
-    case "brain":
-      return new BriansBrain({ birth: config.brain.birth });
-    case "cyclic":
-      return new Cyclic({
-        states: config.cyclic.states,
-        threshold: config.cyclic.threshold,
-      });
     case "lenia":
       return new Lenia({
         radius: config.lenia.radius,
@@ -131,7 +121,7 @@ function buildAutomaton(config: ConfigState): Automaton {
 }
 
 function renderConfigFrom(config: ConfigState): Partial<RenderConfig> {
-  if (config.type === "pokemon" || config.type === "cyclic") {
+  if (config.type === "pokemon") {
     // Cells carry their own palette rgb; a black->white ramp makes the
     // channel-wise mix an identity so the type colors display verbatim.
     return {
@@ -229,23 +219,6 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
             6
           );
         }
-      }
-      engine.setCells(data);
-      return;
-    }
-
-    if (cfg.type === "cyclic") {
-      // Uniform random states; spirals wind up from the noise.
-      const n = Math.max(3, cfg.cyclic.states);
-      const data = new Float32Array(width * height * 4);
-      for (let i = 0; i < width * height; i++) {
-        const st = Math.floor(Math.random() * n);
-        const [r, g, b] = cyclicColor(st, n);
-        const base = i * 4;
-        data[base] = r;
-        data[base + 1] = g;
-        data[base + 2] = b;
-        data[base + 3] = st;
       }
       engine.setCells(data);
       return;
@@ -363,7 +336,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // life & brian's brain (single channel, "noise" and "random" coincide)
+    // life-like rules (single channel, "noise" and "random" coincide)
     if (cfg.init.mode === "random" || cfg.init.mode === "noise") {
       engine.randomize(cfg.init.density);
     } else if (cfg.init.mode === "center") {
@@ -544,7 +517,14 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
   // Elementary params.
   useEffect(() => {
     const a = automatonRef.current;
-    if (a instanceof Elementary) a.setRule(config.elementary.rule);
+    const engine = engineRef.current;
+    if (a instanceof Elementary && engine) {
+      const automaton = buildAutomaton(configRef.current);
+      automatonRef.current = automaton;
+      engine.setAutomaton(automaton);
+      applyInit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.elementary.rule]);
 
   // Neural realtime params.
@@ -627,21 +607,6 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       a.setDt(config.rd.dt);
     }
   }, [config.rd.feed, config.rd.kill, config.rd.diffU, config.rd.diffV, config.rd.dt]);
-
-  // Brian's Brain realtime params.
-  useEffect(() => {
-    const a = automatonRef.current;
-    if (a instanceof BriansBrain) a.setBirth(config.brain.birth);
-  }, [config.brain.birth]);
-
-  // Cyclic realtime params.
-  useEffect(() => {
-    const a = automatonRef.current;
-    if (a instanceof Cyclic) {
-      a.setStates(config.cyclic.states);
-      a.setThreshold(config.cyclic.threshold);
-    }
-  }, [config.cyclic.states, config.cyclic.threshold]);
 
   // Lenia params (radius is structural and rebuilds; the rest are realtime).
   useEffect(() => {

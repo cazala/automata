@@ -10,16 +10,12 @@ import {
   setPokemon,
   togglePokemonType,
   setRD,
-  setBrain,
-  setCyclic,
   setLenia,
   setRender,
   setInit,
   ACTIVATION_GAUSSIAN,
   type AutomatonType,
   type InitMode,
-  type NeuralConfig,
-  type NeuralModeUI,
 } from "../store/configSlice";
 import { requestInit } from "../store/uiSlice";
 import { CollapsibleSection } from "./ui/CollapsibleSection";
@@ -29,80 +25,33 @@ import { Checkbox } from "./ui/Checkbox";
 import { ColorInput } from "./ui/ColorInput";
 import { Button } from "./ui/Button";
 import { Field } from "./ui/Field";
-import { NumberInput } from "./ui/NumberInput";
 import "./Sidebar.css";
 
-const LIFE_PRESETS: Record<string, { birth: number[]; survival: number[] }> = {
-  conway: { birth: [3], survival: [2, 3] },
-  highlife: { birth: [3, 6], survival: [2, 3] },
-  seeds: { birth: [2], survival: [] },
-  daynight: { birth: [3, 6, 7, 8], survival: [3, 4, 6, 7, 8] },
-  maze: { birth: [3], survival: [1, 2, 3, 4, 5] },
-  replicator: { birth: [1, 3, 5, 7], survival: [1, 3, 5, 7] },
+const LIFE_PRESETS: Record<
+  string,
+  { label: string; birth: number[]; survival: number[]; density: number }
+> = {
+  conway: {
+    label: "Conway (B3/S23)",
+    birth: [3],
+    survival: [2, 3],
+    density: 0.5,
+  },
+  daynight: {
+    label: "Day & Night",
+    birth: [3, 6, 7, 8],
+    survival: [3, 4, 6, 7, 8],
+    density: 0.5,
+  },
+  maze: {
+    label: "Maze (B3/S12345)",
+    birth: [3],
+    survival: [1, 2, 3, 4, 5],
+    density: 0.02,
+  },
 };
 
 const ELEMENTARY_PRESETS = [30, 54, 60, 90, 110, 150, 184, 250];
-
-/**
- * Neural CA presets: bundles of the direct-mode kernel/activation knobs (plus
- * one showcasing the random-MLP substrate), each with the initial state it
- * develops best from. Verified conv->activation pattern rules.
- */
-const NEURAL_PRESETS: Record<
-  string,
-  {
-    label: string;
-    values: Partial<NeuralConfig>;
-    init: { mode: InitMode; density: number };
-  }
-> = {
-  worms: {
-    label: "Worms",
-    values: {
-      mode: "direct",
-      activation: ACTIVATION_GAUSSIAN,
-      gaussWidth: 0.6,
-      kCenter: WORMS_KERNEL.center,
-      kEdge: WORMS_KERNEL.edge,
-      kCorner: WORMS_KERNEL.corner,
-    },
-    init: { mode: "random", density: 0.2 },
-  },
-  mitosis: {
-    label: "Mitosis",
-    values: {
-      mode: "direct",
-      activation: ACTIVATION_GAUSSIAN,
-      gaussWidth: 1.3,
-      kCenter: 0.4,
-      kEdge: 0.88,
-      kCorner: -0.94,
-    },
-    init: { mode: "noise", density: 0.5 },
-  },
-  mosaic: {
-    label: "Mosaic",
-    values: {
-      mode: "direct",
-      activation: ACTIVATION_GAUSSIAN,
-      gaussWidth: 0.6,
-      kCenter: 0.66,
-      kEdge: 0.9,
-      kCorner: -0.68,
-    },
-    init: { mode: "noise", density: 0.5 },
-  },
-  network: {
-    label: "Random network",
-    values: {
-      mode: "network",
-      activation: 1, // tanh
-      updateRate: 0.5,
-      stepSize: 0.1,
-    },
-    init: { mode: "random", density: 0.2 },
-  },
-};
 
 /** Classic Gray-Scott (feed, kill) operating points. */
 const RD_PRESETS: Record<string, { label: string; feed: number; kill: number }> = {
@@ -110,29 +59,13 @@ const RD_PRESETS: Record<string, { label: string; feed: number; kill: number }> 
   mitosis: { label: "Mitosis", feed: 0.0367, kill: 0.0649 },
   solitons: { label: "Solitons", feed: 0.03, kill: 0.062 },
   worms: { label: "Worms", feed: 0.046, kill: 0.063 },
-  waves: { label: "Waves", feed: 0.014, kill: 0.045 },
 };
 
-const approx = (a: number, b: number) => Math.abs(a - b) < 0.005;
 const approxTight = (a: number, b: number) => Math.abs(a - b) < 0.0005;
 
 function detectRDPreset(rd: { feed: number; kill: number }): string {
   for (const [key, p] of Object.entries(RD_PRESETS)) {
     if (approxTight(rd.feed, p.feed) && approxTight(rd.kill, p.kill)) return key;
-  }
-  return "custom";
-}
-
-function detectNeuralPreset(neural: NeuralConfig): string {
-  for (const [key, preset] of Object.entries(NEURAL_PRESETS)) {
-    const v = preset.values;
-    const matches = Object.entries(v).every(([k, val]) => {
-      const cur = neural[k as keyof NeuralConfig];
-      return typeof val === "number" && typeof cur === "number"
-        ? approx(cur, val)
-        : cur === val;
-    });
-    if (matches) return key;
   }
   return "custom";
 }
@@ -398,8 +331,6 @@ export function Sidebar() {
             { value: "neural", label: "Neural CA" },
             { value: "pokemon", label: "Pokemon" },
             { value: "rd", label: "Reaction-Diffusion" },
-            { value: "brain", label: "Brian's Brain" },
-            { value: "cyclic", label: "Cyclic (spirals)" },
             { value: "lenia", label: "Lenia (continuous)" },
           ]}
         />
@@ -418,14 +349,16 @@ export function Sidebar() {
                       survival: countsToMask(p.survival),
                     })
                   );
+                if (p) {
+                  dispatch(setInit({ mode: "random", density: p.density }));
+                  dispatch(requestInit());
+                }
               }}
               options={[
-                { value: "conway", label: "Conway (B3/S23)" },
-                { value: "highlife", label: "HighLife (B36/S23)" },
-                { value: "seeds", label: "Seeds (B2/S)" },
-                { value: "daynight", label: "Day & Night" },
-                { value: "maze", label: "Maze (B3/S12345)" },
-                { value: "replicator", label: "Replicator" },
+                ...Object.entries(LIFE_PRESETS).map(([value, p]) => ({
+                  value,
+                  label: p.label,
+                })),
                 { value: "custom", label: "Custom" },
               ]}
             />
@@ -467,60 +400,14 @@ export function Sidebar() {
         {config.type === "neural" && (
           <>
             <CollapsibleSection title="Neural CA">
-              <Dropdown
-                label="Preset"
-                value={detectNeuralPreset(config.neural)}
-                onChange={(v) => {
-                  const p = NEURAL_PRESETS[v];
-                  if (!p) return;
-                  dispatch(setNeural(p.values));
-                  dispatch(setInit(p.init));
-                  dispatch(requestInit());
-                }}
-                options={[
-                  ...Object.entries(NEURAL_PRESETS).map(([value, p]) => ({
-                    value,
-                    label: p.label,
-                  })),
-                  { value: "custom", label: "Custom" },
-                ]}
-              />
-              <Dropdown
-                label="Mode"
-                value={config.neural.mode}
-                onChange={(v) => dispatch(setNeural({ mode: v as NeuralModeUI }))}
-                options={[
-                  { value: "network", label: "Network (MLP)" },
-                  { value: "direct", label: "Direct (conv → activation)" },
-                ]}
-              />
-              <Slider
-                label="Channels"
-                value={config.neural.channels}
-                onChange={(v) => dispatch(setNeural({ channels: v }))}
-                min={4}
-                max={16}
-                step={1}
-              />
-              <Dropdown
-                label="Activation"
-                value={String(config.neural.activation)}
-                onChange={(v) => dispatch(setNeural({ activation: parseInt(v) }))}
-                options={[
-                  { value: "0", label: "ReLU" },
-                  { value: "1", label: "Tanh" },
-                  { value: "2", label: "Sigmoid" },
-                  { value: "3", label: "Inverted gaussian (worms)" },
-                ]}
-              />
               {config.neural.activation === ACTIVATION_GAUSSIAN && (
                 <Slider
                   label="Gaussian width"
                   value={config.neural.gaussWidth}
                   onChange={(v) => dispatch(setNeural({ gaussWidth: v }))}
-                  min={0.05}
-                  max={3}
-                  step={0.05}
+                  min={0.6}
+                  max={0.7}
+                  step={0.01}
                   formatValue={(v) => v.toFixed(2)}
                 />
               )}
@@ -531,8 +418,8 @@ export function Sidebar() {
                 label="Center"
                 value={config.neural.kCenter}
                 onChange={(v) => dispatch(setNeural({ kCenter: v }))}
-                min={-2}
-                max={2}
+                min={-1}
+                max={-0.5}
                 step={0.01}
                 formatValue={(v) => v.toFixed(2)}
               />
@@ -540,8 +427,8 @@ export function Sidebar() {
                 label="Edge"
                 value={config.neural.kEdge}
                 onChange={(v) => dispatch(setNeural({ kEdge: v }))}
-                min={-2}
-                max={2}
+                min={-1.5}
+                max={-0.9}
                 step={0.01}
                 formatValue={(v) => v.toFixed(2)}
               />
@@ -549,8 +436,8 @@ export function Sidebar() {
                 label="Corner"
                 value={config.neural.kCorner}
                 onChange={(v) => dispatch(setNeural({ kCorner: v }))}
-                min={-2}
-                max={2}
+                min={0.4}
+                max={0.7}
                 step={0.01}
                 formatValue={(v) => v.toFixed(2)}
               />
@@ -573,57 +460,6 @@ export function Sidebar() {
                 Reset kernel
               </Button>
             </CollapsibleSection>
-
-            {config.neural.mode === "network" && (
-              <CollapsibleSection title="Network">
-                <Slider
-                  label="Hidden units"
-                  value={config.neural.hidden}
-                  onChange={(v) => dispatch(setNeural({ hidden: v }))}
-                  min={8}
-                  max={64}
-                  step={8}
-                />
-                <Slider
-                  label="Update rate"
-                  value={config.neural.updateRate}
-                  onChange={(v) => dispatch(setNeural({ updateRate: v }))}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  formatValue={(v) => v.toFixed(2)}
-                />
-                <Slider
-                  label="Step size"
-                  value={config.neural.stepSize}
-                  onChange={(v) => dispatch(setNeural({ stepSize: v }))}
-                  min={0.01}
-                  max={0.5}
-                  step={0.01}
-                  formatValue={(v) => v.toFixed(2)}
-                />
-                <Checkbox
-                  label="Alive masking (needs 4+ channels)"
-                  checked={config.neural.aliveMask}
-                  onChange={(c) => dispatch(setNeural({ aliveMask: c }))}
-                />
-                <NumberInput
-                  label="Weight seed"
-                  value={config.neural.seed}
-                  onChange={(v) => dispatch(setNeural({ seed: v }))}
-                  min={0}
-                  max={2 ** 31 - 1}
-                  step={1}
-                />
-                <Button
-                  onClick={() =>
-                    dispatch(setNeural({ seed: (Math.random() * 1e9) | 0 }))
-                  }
-                >
-                  Randomize seed
-                </Button>
-              </CollapsibleSection>
-            )}
           </>
         )}
 
@@ -678,8 +514,8 @@ export function Sidebar() {
               label="Feed rate"
               value={config.rd.feed}
               onChange={(v) => dispatch(setRD({ feed: v }))}
-              min={0.005}
-              max={0.12}
+              min={0.03}
+              max={0.07}
               step={0.0005}
               formatValue={(v) => v.toFixed(4)}
             />
@@ -687,8 +523,8 @@ export function Sidebar() {
               label="Kill rate"
               value={config.rd.kill}
               onChange={(v) => dispatch(setRD({ kill: v }))}
-              min={0.03}
-              max={0.08}
+              min={0.0575}
+              max={0.065}
               step={0.0005}
               formatValue={(v) => v.toFixed(4)}
             />
@@ -696,8 +532,8 @@ export function Sidebar() {
               label="Diffusion U"
               value={config.rd.diffU}
               onChange={(v) => dispatch(setRD({ diffU: v }))}
-              min={0.2}
-              max={1.2}
+              min={0.7}
+              max={1.1}
               step={0.01}
               formatValue={(v) => v.toFixed(2)}
             />
@@ -705,56 +541,10 @@ export function Sidebar() {
               label="Diffusion V"
               value={config.rd.diffV}
               onChange={(v) => dispatch(setRD({ diffV: v }))}
-              min={0.1}
-              max={0.8}
+              min={0.25}
+              max={0.7}
               step={0.01}
               formatValue={(v) => v.toFixed(2)}
-            />
-            <Slider
-              label="Time step"
-              value={config.rd.dt}
-              onChange={(v) => dispatch(setRD({ dt: v }))}
-              min={0.2}
-              max={1.2}
-              step={0.05}
-              formatValue={(v) => v.toFixed(2)}
-            />
-          </CollapsibleSection>
-        )}
-
-        {config.type === "brain" && (
-          <CollapsibleSection title="Brian's Brain">
-            <Slider
-              label="Firing neighbors to ignite"
-              value={config.brain.birth}
-              onChange={(v) => dispatch(setBrain({ birth: v }))}
-              min={1}
-              max={4}
-              step={1}
-            />
-          </CollapsibleSection>
-        )}
-
-        {config.type === "cyclic" && (
-          <CollapsibleSection title="Cyclic rule">
-            <Slider
-              label="States"
-              value={config.cyclic.states}
-              onChange={(v) => {
-                dispatch(setCyclic({ states: v }));
-                dispatch(requestInit()); // stale state indices need a re-seed
-              }}
-              min={3}
-              max={20}
-              step={1}
-            />
-            <Slider
-              label="Threshold"
-              value={config.cyclic.threshold}
-              onChange={(v) => dispatch(setCyclic({ threshold: v }))}
-              min={1}
-              max={4}
-              step={1}
             />
           </CollapsibleSection>
         )}
@@ -765,16 +555,16 @@ export function Sidebar() {
               label="Kernel radius"
               value={config.lenia.radius}
               onChange={(v) => dispatch(setLenia({ radius: v }))}
-              min={4}
-              max={16}
+              min={8}
+              max={12}
               step={1}
             />
             <Slider
               label="Growth center (mu)"
               value={config.lenia.mu}
               onChange={(v) => dispatch(setLenia({ mu: v }))}
-              min={0.05}
-              max={0.4}
+              min={0.1}
+              max={0.3}
               step={0.005}
               formatValue={(v) => v.toFixed(3)}
             />
@@ -782,19 +572,10 @@ export function Sidebar() {
               label="Growth width (sigma)"
               value={config.lenia.sigma}
               onChange={(v) => dispatch(setLenia({ sigma: v }))}
-              min={0.005}
+              min={0.02}
               max={0.06}
               step={0.001}
               formatValue={(v) => v.toFixed(3)}
-            />
-            <Slider
-              label="Time step"
-              value={config.lenia.dt}
-              onChange={(v) => dispatch(setLenia({ dt: v }))}
-              min={0.02}
-              max={0.5}
-              step={0.01}
-              formatValue={(v) => v.toFixed(2)}
             />
           </CollapsibleSection>
         )}
