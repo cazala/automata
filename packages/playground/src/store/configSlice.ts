@@ -1,5 +1,9 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { WORMS_GAUSS_WIDTH, WORMS_KERNEL } from "@cazala/automata";
+import {
+  POKEMON_TYPE_COUNT,
+  WORMS_GAUSS_WIDTH,
+  WORMS_KERNEL,
+} from "@cazala/automata";
 
 /** Activation ids, matching the Neural automaton's `activation` param. */
 export const ACTIVATION_GAUSSIAN = 3;
@@ -33,8 +37,10 @@ export interface NeuralConfig {
 }
 
 export interface PokemonConfig {
-  /** Neighbours of one attacking type needed to convert a cell (1-8). */
+  /** Neighbours of one attacking type needed to convert a cell (1-3). */
   threshold: number;
+  /** Per-type participation flags (indexed like POKEMON_TYPES). */
+  enabled: boolean[];
 }
 
 /** Grid dimensions derive from the canvas; edges always wrap (toroidal). */
@@ -92,7 +98,10 @@ export const defaultConfig: ConfigState = {
     kEdge: WORMS_KERNEL.edge,
     kCorner: WORMS_KERNEL.corner,
   },
-  pokemon: { threshold: 2 },
+  pokemon: {
+    threshold: 2,
+    enabled: new Array(POKEMON_TYPE_COUNT).fill(true),
+  },
   grid: { wrap: true },
   render: {
     colorOn: "#c8d8ff",
@@ -123,6 +132,19 @@ const configSlice = createSlice({
     setPokemon(state, action: PayloadAction<Partial<PokemonConfig>>) {
       Object.assign(state.pokemon, action.payload);
     },
+    /**
+     * Flip one type's participation. Lives in the reducer (not the component)
+     * so rapid clicks each apply to current state instead of a stale render.
+     * Keeps at least two types in play — one alone has nothing to battle.
+     */
+    togglePokemonType(state, action: PayloadAction<number>) {
+      const enabled = state.pokemon.enabled;
+      const i = action.payload;
+      if (i < 0 || i >= enabled.length) return;
+      const onCount = enabled.filter(Boolean).length;
+      if (enabled[i] && onCount <= 2) return;
+      enabled[i] = !enabled[i];
+    },
     setGrid(state, action: PayloadAction<Partial<GridConfig>>) {
       Object.assign(state.grid, action.payload);
     },
@@ -147,6 +169,7 @@ export const {
   setElementaryRule,
   setNeural,
   setPokemon,
+  togglePokemonType,
   setGrid,
   setRender,
   setInit,

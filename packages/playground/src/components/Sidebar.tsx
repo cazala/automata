@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { countsToMask, maskToCounts, POKEMON_TYPES, WORMS_KERNEL } from "@cazala/automata";
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
@@ -7,6 +8,7 @@ import {
   setElementaryRule,
   setNeural,
   setPokemon,
+  togglePokemonType,
   setRender,
   setInit,
   ACTIVATION_GAUSSIAN,
@@ -143,6 +145,113 @@ function NeighborMask({
             {n}
           </button>
         ))}
+      </div>
+    </Field>
+  );
+}
+
+function formatCount(n: number): string {
+  if (n < 1e3) return String(Math.floor(n));
+  if (n < 1e6) return (n / 1e3).toFixed(1) + "K";
+  if (n < 1e9) return (n / 1e6).toFixed(2) + "M";
+  if (n < 1e12) return (n / 1e9).toFixed(2) + "B";
+  return (n / 1e12).toFixed(2) + "T";
+}
+
+/**
+ * Type legend with live occupancy percentages, sorted by share, plus a
+ * running battle counter (one battle per cell per step). Clicking a type
+ * toggles its participation and relaunches the simulation. Polls the grid
+ * every 500ms (a GPU readback) while the pokemon automaton is active —
+ * the component only mounts then, so the cost is scoped.
+ */
+function PokemonLegend() {
+  const engine = useEngine();
+  const dispatch = useAppDispatch();
+  const enabled = useAppSelector((s) => s.config.pokemon.enabled);
+  const [pcts, setPcts] = useState<number[]>(() =>
+    new Array(POKEMON_TYPES.length).fill(0)
+  );
+  const [battles, setBattles] = useState(0);
+  const battleRef = useRef({ frame: 0, total: 0 });
+
+  const toggleType = (index: number) => {
+    dispatch(togglePokemonType(index));
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    // GPU readbacks can outlast the poll interval (throttled/occluded tabs);
+    // never let them overlap or they pile up and stall the renderer.
+    let inFlight = false;
+    const tick = async () => {
+      const e = engine.engineRef.current;
+      if (!e || inFlight) return;
+      const ch = e.getChannels();
+      if (ch < 4) return;
+
+      // One battle per cell per step; frame resets when the automaton swaps.
+      const frame = e.getFrame();
+      const { width, height } = e.getGridSize();
+      const st = battleRef.current;
+      if (frame < st.frame) st.total = frame * width * height;
+      else st.total += (frame - st.frame) * width * height;
+      st.frame = frame;
+      setBattles(st.total);
+
+      inFlight = true;
+      try {
+        const cells = await e.getCells();
+        if (cancelled || cells.length === 0) return;
+        const counts = new Array(POKEMON_TYPES.length).fill(0);
+        const n = cells.length / ch;
+        for (let i = 0; i < n; i++) {
+          const t = Math.round(cells[i * ch + 3]);
+          if (t >= 0 && t < counts.length) counts[t]++;
+        }
+        setPcts(counts.map((c) => (100 * c) / n));
+      } finally {
+        inFlight = false;
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [engine]);
+
+  const rows = POKEMON_TYPES.map((t, i) => ({
+    ...t,
+    index: i,
+    pct: pcts[i],
+    on: enabled[i] ?? true,
+  })).sort((a, b) => Number(b.on) - Number(a.on) || b.pct - a.pct);
+
+  return (
+    <Field>
+      <label>Types (click to toggle)</label>
+      <div className="pokemon-legend">
+        {rows.map((t) => (
+          <button
+            key={t.name}
+            className={`pokemon-type ${t.on ? "" : "off"}`}
+            onClick={() => toggleType(t.index)}
+            title={t.on ? `Disable ${t.name}` : `Enable ${t.name}`}
+          >
+            <span
+              className="pokemon-swatch"
+              style={{ background: `rgb(${t.color.join(",")})` }}
+            />
+            <span className="pokemon-name">{t.name}</span>
+            <span className="pokemon-pct">{t.on ? `${t.pct.toFixed(2)}%` : "—"}</span>
+          </button>
+        ))}
+      </div>
+      <div className="pokemon-battles">
+        <span className="pokemon-name">Battles</span>
+        <span className="pokemon-pct">{formatCount(battles)}</span>
       </div>
     </Field>
   );
@@ -433,23 +542,10 @@ export function Sidebar() {
               value={config.pokemon.threshold}
               onChange={(v) => dispatch(setPokemon({ threshold: v }))}
               min={1}
-              max={8}
+              max={3}
               step={1}
             />
-            <Field>
-              <label>Types</label>
-              <div className="pokemon-legend">
-                {POKEMON_TYPES.map((t) => (
-                  <span key={t.name} className="pokemon-type">
-                    <span
-                      className="pokemon-swatch"
-                      style={{ background: `rgb(${t.color.join(",")})` }}
-                    />
-                    {t.name}
-                  </span>
-                ))}
-              </div>
-            </Field>
+            <PokemonLegend />
           </CollapsibleSection>
         )}
 

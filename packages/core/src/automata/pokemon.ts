@@ -92,7 +92,7 @@ function buildPalette(): Float32Array {
 }
 
 export interface PokemonOptions {
-  /** Neighbours of a single attacking type needed to convert a cell (1-8). */
+  /** Neighbours of a single attacking type needed to convert a cell (1-3). */
   threshold?: number;
 }
 
@@ -101,7 +101,7 @@ export class Pokemon extends Automaton {
 
   constructor(options: PokemonOptions = {}) {
     super();
-    this.values.threshold = Math.max(1, Math.min(8, Math.floor(options.threshold ?? 2)));
+    this.values.threshold = Math.max(1, Math.min(3, Math.floor(options.threshold ?? 2)));
   }
 
   build(): AutomatonDescriptor {
@@ -145,7 +145,7 @@ export class Pokemon extends Automaton {
   }
 
   setThreshold(n: number): void {
-    this.set("threshold", Math.max(1, Math.min(8, Math.floor(n))));
+    this.set("threshold", Math.max(1, Math.min(3, Math.floor(n))));
   }
 
   getThreshold(): number {

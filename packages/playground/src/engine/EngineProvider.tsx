@@ -156,10 +156,17 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (cfg.type === "pokemon") {
-      // Every cell starts as a random type; the field self-organizes from noise.
+      // Every cell starts as a random enabled type; the field self-organizes
+      // from noise. Disabled types can never re-emerge, since cells only ever
+      // convert to a neighbour's type.
+      const pool: number[] = [];
+      for (let t = 0; t < POKEMON_TYPE_COUNT; t++) {
+        if (cfg.pokemon.enabled[t] ?? true) pool.push(t);
+      }
+      if (pool.length === 0) pool.push(0);
       const data = new Float32Array(width * height * 4);
       for (let i = 0; i < width * height; i++) {
-        const t = Math.floor(Math.random() * POKEMON_TYPE_COUNT);
+        const t = pool[Math.floor(Math.random() * pool.length)];
         const [r, g, b] = POKEMON_TYPES[t].color;
         const base = i * 4;
         data[base] = r / 255;

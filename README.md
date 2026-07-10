@@ -17,6 +17,8 @@ Managed with **pnpm workspaces**.
 
 - `packages/core` — [`@cazala/automata`](packages/core), the engine library (Rollup, ESM).
 - `packages/playground` — `@cazala/automata-playground`, the React + Vite playground.
+- `packages/worker` — Cloudflare Worker that reverse-proxies `caza.la/automata`
+  to the deployed playground at `automata.caza.la`.
 
 ## Getting started
 
@@ -65,6 +67,20 @@ engine.play();
 ```
 
 See [`packages/core/README.md`](packages/core/README.md) for the full API.
+
+## Cloudflare Worker
+
+The Worker package deploys `cazala-automata-worker` with a route for
+`caza.la/automata*`. It strips the `/automata` prefix and proxies requests to
+`https://automata.caza.la`, keeping the browser URL on `caza.la`.
+
+```bash
+pnpm --filter worker run typecheck
+pnpm --filter worker run deploy
+```
+
+Worker configuration lives in [`packages/worker/wrangler.jsonc`](packages/worker/wrangler.jsonc).
+The Worker tooling uses Wrangler and requires Node 22 in CI.
 
 ## License
 

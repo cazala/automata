@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { loadConfig } from "./configSlice";
+import { loadConfig, togglePokemonType } from "./configSlice";
 
 export type Tool = "paint" | "erase" | "pan";
 export type ModalKind = null | "save" | "load";
@@ -51,12 +51,17 @@ const uiSlice = createSlice({
       state.initNonce++;
     },
   },
-  // Session loads rewrite the initial-state config wholesale, so the grid has
-  // to be re-seeded even when no structural param changed.
+  // Session loads rewrite the initial-state config wholesale, and pokemon type
+  // toggles change the seedable pool, so the grid has to be re-seeded even
+  // when no structural param changed.
   extraReducers: (builder) => {
-    builder.addCase(loadConfig, (state) => {
-      state.initNonce++;
-    });
+    builder
+      .addCase(loadConfig, (state) => {
+        state.initNonce++;
+      })
+      .addCase(togglePokemonType, (state) => {
+        state.initNonce++;
+      });
   },
 });
 
