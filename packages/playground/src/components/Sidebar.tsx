@@ -302,10 +302,67 @@ function KernelPreview({
   );
 }
 
+/** Height of the always-visible sheet handle on mobile (kept in sync with CSS). */
+const SHEET_HANDLE_PX = 56;
+
 export function Sidebar() {
   const dispatch = useAppDispatch();
   const engine = useEngine();
   const config = useAppSelector((s) => s.config);
+
+  // Mobile bottom-sheet state: on small screens the sidebar is a fixed sheet
+  // showing only its handle; tap or drag the handle to open/close. Desktop
+  // ignores all of this (the handle is display:none and the transform styles
+  // only apply under the media query).
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    startY: number;
+    startTranslate: number;
+    range: number;
+    moved: boolean;
+  } | null>(null);
+
+  const onHandlePointerDown = (e: React.PointerEvent) => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const range = el.getBoundingClientRect().height - SHEET_HANDLE_PX;
+    dragRef.current = {
+      startY: e.clientY,
+      startTranslate: sheetOpen ? 0 : range,
+      range,
+      moved: false,
+    };
+    el.classList.add("dragging");
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const clampTranslate = (d: { startTranslate: number; range: number }, dy: number) =>
+    Math.min(Math.max(d.startTranslate + dy, 0), d.range);
+
+  const onHandlePointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    const el = sheetRef.current;
+    if (!d || !el) return;
+    const dy = e.clientY - d.startY;
+    if (Math.abs(dy) > 6) d.moved = true;
+    el.style.transform = `translateY(${clampTranslate(d, dy)}px)`;
+  };
+
+  const onHandlePointerUp = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    const el = sheetRef.current;
+    dragRef.current = null;
+    if (!d || !el) return;
+    el.classList.remove("dragging");
+    el.style.transform = "";
+    if (!d.moved) {
+      setSheetOpen((open) => !open); // tap toggles
+    } else {
+      // Snap to whichever position the sheet was released closer to.
+      setSheetOpen(clampTranslate(d, e.clientY - d.startY) < d.range / 2);
+    }
+  };
 
   const lifePresetValue =
     Object.entries(LIFE_PRESETS).find(
@@ -315,7 +372,17 @@ export function Sidebar() {
     )?.[0] ?? "custom";
 
   return (
-    <div className="right-sidebar">
+    <div ref={sheetRef} className={`right-sidebar ${sheetOpen ? "open" : ""}`}>
+      <div
+        className="sheet-handle"
+        onPointerDown={onHandlePointerDown}
+        onPointerMove={onHandlePointerMove}
+        onPointerUp={onHandlePointerUp}
+        onPointerCancel={onHandlePointerUp}
+      >
+        <span className="sheet-grabber" />
+        <span className="sheet-title">Settings</span>
+      </div>
       <div className="sidebar-scroll">
         <div className="sidebar-header">
           <h3>Configuration</h3>

@@ -7,6 +7,7 @@
   overflow: hidden;
 }
 
+
 .sidebar-scroll {
   height: 100%;
   overflow-y: auto;
@@ -134,4 +135,73 @@
   border-top: 1px solid #33333f;
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+
+/* Mobile: the sidebar becomes a bottom sheet. Only the handle peeks out;
+   tap or drag it to open. The sheet covers ~72% of the screen so the
+   simulation stays visible (and live) above it. */
+.sheet-handle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .right-sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 72dvh;
+    border-left: none;
+    border-top: 1px solid #333;
+    border-radius: 16px 16px 0 0;
+    z-index: 600;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+    transform: translateY(calc(100% - 56px));
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .right-sidebar.open {
+    transform: translateY(0);
+  }
+
+  .right-sidebar.dragging {
+    transition: none;
+  }
+
+  .sheet-handle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 56px;
+    flex-shrink: 0;
+    cursor: grab;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .sheet-grabber {
+    width: 42px;
+    height: 4px;
+    border-radius: 2px;
+    background: #4a4a58;
+  }
+
+  .sheet-title {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .sidebar-scroll {
+    flex: 1;
+    height: auto;
+  }
 }
