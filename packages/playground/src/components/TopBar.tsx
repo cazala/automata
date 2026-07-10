@@ -13,7 +13,7 @@ import {
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
 import { setActiveModal, setHomepage, setTool, type Tool } from "../store/uiSlice";
-import { setStepsPerSecond } from "../store/configSlice";
+import { maxStepsPerSecond, setStepsPerSecond } from "../store/configSlice";
 import { Button } from "./ui/Button";
 import "./TopBar.css";
 
@@ -24,6 +24,7 @@ export function TopBar() {
   const tool = useAppSelector((s) => s.ui.tool);
   const fps = useAppSelector((s) => s.ui.fps);
   const stepsPerSecond = useAppSelector((s) => s.config.stepsPerSecond);
+  const maxSps = useAppSelector((s) => maxStepsPerSecond(s.config.type));
 
   const tools: { id: Tool; icon: React.ReactNode; title: string }[] = [
     { id: "paint", icon: <Paintbrush size={16} />, title: "Paint cells" },
@@ -80,14 +81,21 @@ export function TopBar() {
 
         <div className="topbar-speed">
           <span className="topbar-speed-label">{stepsPerSecond}/s</span>
+          {/* Logarithmic 1..maxSps so the low end stays precise. */}
           <input
             type="range"
             className="slider"
-            min={1}
-            max={200}
-            step={1}
-            value={stepsPerSecond}
-            onChange={(e) => dispatch(setStepsPerSecond(parseInt(e.target.value)))}
+            min={0}
+            max={Math.log10(maxSps)}
+            step={0.01}
+            value={Math.log10(Math.max(1, Math.min(maxSps, stepsPerSecond)))}
+            onChange={(e) =>
+              dispatch(
+                setStepsPerSecond(
+                  Math.min(maxSps, Math.round(Math.pow(10, parseFloat(e.target.value))))
+                )
+              )
+            }
           />
         </div>
       </div>

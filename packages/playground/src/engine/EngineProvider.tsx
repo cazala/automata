@@ -13,6 +13,7 @@ import {
   Pokemon,
   POKEMON_TYPES,
   POKEMON_TYPE_COUNT,
+  ReactionDiffusion,
   type Activation,
   type Automaton,
   type RenderConfig,
@@ -98,6 +99,14 @@ function buildAutomaton(config: ConfigState): Automaton {
       });
     case "pokemon":
       return new Pokemon({ threshold: config.pokemon.threshold });
+    case "rd":
+      return new ReactionDiffusion({
+        feed: config.rd.feed,
+        kill: config.rd.kill,
+        diffU: config.rd.diffU,
+        diffV: config.rd.diffV,
+        dt: config.rd.dt,
+      });
   }
 }
 
@@ -112,6 +121,18 @@ function renderConfigFrom(config: ConfigState): Partial<RenderConfig> {
       showGrid: config.render.showGrid,
       gridThreshold: 6,
       colorMode: 1,
+    };
+  }
+  if (config.type === "rd") {
+    // Channel 0 is chemical U, which idles at 1 and *dips* where patterns
+    // form — swap on/off so the empty field renders dark and patterns light.
+    return {
+      colorOn: hexToRgba(config.render.colorOff),
+      colorOff: hexToRgba(config.render.colorOn),
+      colorBg: hexToRgba(config.render.colorBg),
+      showGrid: config.render.showGrid,
+      gridThreshold: 6,
+      colorMode: 0,
     };
   }
   return {
@@ -152,6 +173,44 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
 
     if (cfg.type === "elementary") {
       engine.setCell(cx, 0, [1]);
+      return;
+    }
+
+    if (cfg.type === "rd") {
+      // Idle state is u=1 (fed), v=0; patterns grow from ragged patches of V.
+      // The faint V noise and irregular seed shapes matter: a perfectly
+      // symmetric, noiseless field freezes into round spots that never divide
+      // (verified — mitosis stays at constant coverage without them).
+      // engine.clear()'s all-zero state is inert for Gray-Scott, so build the
+      // field explicitly even for "clear".
+      const data = new Float32Array(width * height * 2);
+      for (let i = 0; i < width * height; i++) {
+        data[i * 2] = 1;
+        data[i * 2 + 1] = Math.random() * 0.02;
+      }
+      const seed = (sx: number, sy: number, size: number) => {
+        for (let dy = 0; dy < size; dy++) {
+          for (let dx = 0; dx < size; dx++) {
+            if (Math.random() < 0.25) continue; // ragged edge
+            const px = (sx + dx + width) % width;
+            const py = (sy + dy + height) % height;
+            data[(py * width + px) * 2 + 1] = 1;
+          }
+        }
+      };
+      if (cfg.init.mode === "center") {
+        seed(cx - 4, cy - 4, 8);
+      } else if (cfg.init.mode !== "clear") {
+        const count = Math.max(1, Math.round(cfg.init.density * 40));
+        for (let i = 0; i < count; i++) {
+          seed(
+            Math.floor(Math.random() * width),
+            Math.floor(Math.random() * height),
+            6
+          );
+        }
+      }
+      engine.setCells(data);
       return;
     }
 
@@ -439,6 +498,18 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     const a = automatonRef.current;
     if (a instanceof Pokemon) a.setThreshold(config.pokemon.threshold);
   }, [config.pokemon.threshold]);
+
+  // Reaction-diffusion realtime params.
+  useEffect(() => {
+    const a = automatonRef.current;
+    if (a instanceof ReactionDiffusion) {
+      a.setFeed(config.rd.feed);
+      a.setKill(config.rd.kill);
+      a.setDiffU(config.rd.diffU);
+      a.setDiffV(config.rd.diffV);
+      a.setDt(config.rd.dt);
+    }
+  }, [config.rd.feed, config.rd.kill, config.rd.diffU, config.rd.diffV, config.rd.dt]);
 
   // Steps per second.
   useEffect(() => {

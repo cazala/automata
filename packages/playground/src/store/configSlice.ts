@@ -8,7 +8,12 @@ import {
 /** Activation ids, matching the Neural automaton's `activation` param. */
 export const ACTIVATION_GAUSSIAN = 3;
 
-export type AutomatonType = "life" | "elementary" | "neural" | "pokemon";
+/** Speed-slider ceiling per automaton. */
+export function maxStepsPerSecond(type: AutomatonType): number {
+  return type === "rd" ? 1000 : 200;
+}
+
+export type AutomatonType = "life" | "elementary" | "neural" | "pokemon" | "rd";
 
 export interface LifeConfig {
   birth: number;
@@ -43,6 +48,15 @@ export interface PokemonConfig {
   enabled: boolean[];
 }
 
+/** Gray-Scott reaction-diffusion parameters (all realtime). */
+export interface RDConfig {
+  feed: number;
+  kill: number;
+  diffU: number;
+  diffV: number;
+  dt: number;
+}
+
 /** Grid dimensions derive from the canvas; edges always wrap (toroidal). */
 export interface GridConfig {
   wrap: boolean;
@@ -69,6 +83,7 @@ export interface ConfigState {
   elementary: ElementaryConfig;
   neural: NeuralConfig;
   pokemon: PokemonConfig;
+  rd: RDConfig;
   grid: GridConfig;
   render: RenderConfigUI;
   init: InitConfig;
@@ -102,6 +117,7 @@ export const defaultConfig: ConfigState = {
     threshold: 2,
     enabled: new Array(POKEMON_TYPE_COUNT).fill(true),
   },
+  rd: { feed: 0.0545, kill: 0.062, diffU: 1.0, diffV: 0.5, dt: 1.0 },
   grid: { wrap: true },
   render: {
     colorOn: "#c8d8ff",
@@ -118,6 +134,18 @@ const configSlice = createSlice({
   initialState: defaultConfig,
   reducers: {
     setType(state, action: PayloadAction<AutomatonType>) {
+      // Speed caps differ per automaton (RD integrates in tiny steps, so it
+      // gets a higher ceiling). When the cap changes across a switch, scale
+      // the current speed proportionally (200-of-200 -> 1000-of-1000); when
+      // the cap is the same, leave the value untouched.
+      const oldMax = maxStepsPerSecond(state.type);
+      const newMax = maxStepsPerSecond(action.payload);
+      if (oldMax !== newMax) {
+        state.stepsPerSecond = Math.max(
+          1,
+          Math.min(newMax, Math.round((state.stepsPerSecond * newMax) / oldMax))
+        );
+      }
       state.type = action.payload;
     },
     setLife(state, action: PayloadAction<Partial<LifeConfig>>) {
@@ -145,6 +173,9 @@ const configSlice = createSlice({
       if (enabled[i] && onCount <= 2) return;
       enabled[i] = !enabled[i];
     },
+    setRD(state, action: PayloadAction<Partial<RDConfig>>) {
+      Object.assign(state.rd, action.payload);
+    },
     setGrid(state, action: PayloadAction<Partial<GridConfig>>) {
       Object.assign(state.grid, action.payload);
     },
@@ -170,6 +201,7 @@ export const {
   setNeural,
   setPokemon,
   togglePokemonType,
+  setRD,
   setGrid,
   setRender,
   setInit,

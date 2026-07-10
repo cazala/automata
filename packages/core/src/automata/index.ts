@@ -6,3 +6,5 @@ export { Neural } from "./neural";
 export type { NeuralOptions, Activation } from "./neural";
 export { Pokemon, POKEMON_TYPES, POKEMON_TYPE_COUNT } from "./pokemon";
 export type { PokemonOptions, PokemonTypeInfo } from "./pokemon";
+export { ReactionDiffusion } from "./reaction-diffusion";
+export type { ReactionDiffusionOptions } from "./reaction-diffusion";

@@ -9,6 +9,7 @@ import {
   setNeural,
   setPokemon,
   togglePokemonType,
+  setRD,
   setRender,
   setInit,
   ACTIVATION_GAUSSIAN,
@@ -100,7 +101,24 @@ const NEURAL_PRESETS: Record<
   },
 };
 
+/** Classic Gray-Scott (feed, kill) operating points. */
+const RD_PRESETS: Record<string, { label: string; feed: number; kill: number }> = {
+  coral: { label: "Coral growth", feed: 0.0545, kill: 0.062 },
+  mitosis: { label: "Mitosis", feed: 0.0367, kill: 0.0649 },
+  solitons: { label: "Solitons", feed: 0.03, kill: 0.062 },
+  worms: { label: "Worms", feed: 0.046, kill: 0.063 },
+  waves: { label: "Waves", feed: 0.014, kill: 0.045 },
+};
+
 const approx = (a: number, b: number) => Math.abs(a - b) < 0.005;
+const approxTight = (a: number, b: number) => Math.abs(a - b) < 0.0005;
+
+function detectRDPreset(rd: { feed: number; kill: number }): string {
+  for (const [key, p] of Object.entries(RD_PRESETS)) {
+    if (approxTight(rd.feed, p.feed) && approxTight(rd.kill, p.kill)) return key;
+  }
+  return "custom";
+}
 
 function detectNeuralPreset(neural: NeuralConfig): string {
   for (const [key, preset] of Object.entries(NEURAL_PRESETS)) {
@@ -309,6 +327,7 @@ export function Sidebar() {
             { value: "elementary", label: "Elementary (1D)" },
             { value: "neural", label: "Neural CA" },
             { value: "pokemon", label: "Pokemon" },
+            { value: "rd", label: "Reaction-Diffusion" },
           ]}
         />
 
@@ -546,6 +565,73 @@ export function Sidebar() {
               step={1}
             />
             <PokemonLegend />
+          </CollapsibleSection>
+        )}
+
+        {config.type === "rd" && (
+          <CollapsibleSection title="Gray-Scott model">
+            <Dropdown
+              label="Preset"
+              value={detectRDPreset(config.rd)}
+              onChange={(v) => {
+                const p = RD_PRESETS[v];
+                if (!p) return;
+                dispatch(setRD({ feed: p.feed, kill: p.kill }));
+                dispatch(requestInit());
+              }}
+              options={[
+                ...Object.entries(RD_PRESETS).map(([value, p]) => ({
+                  value,
+                  label: p.label,
+                })),
+                { value: "custom", label: "Custom" },
+              ]}
+            />
+            <Slider
+              label="Feed rate"
+              value={config.rd.feed}
+              onChange={(v) => dispatch(setRD({ feed: v }))}
+              min={0.005}
+              max={0.12}
+              step={0.0005}
+              formatValue={(v) => v.toFixed(4)}
+            />
+            <Slider
+              label="Kill rate"
+              value={config.rd.kill}
+              onChange={(v) => dispatch(setRD({ kill: v }))}
+              min={0.03}
+              max={0.08}
+              step={0.0005}
+              formatValue={(v) => v.toFixed(4)}
+            />
+            <Slider
+              label="Diffusion U"
+              value={config.rd.diffU}
+              onChange={(v) => dispatch(setRD({ diffU: v }))}
+              min={0.2}
+              max={1.2}
+              step={0.01}
+              formatValue={(v) => v.toFixed(2)}
+            />
+            <Slider
+              label="Diffusion V"
+              value={config.rd.diffV}
+              onChange={(v) => dispatch(setRD({ diffV: v }))}
+              min={0.1}
+              max={0.8}
+              step={0.01}
+              formatValue={(v) => v.toFixed(2)}
+            />
+            <Slider
+              label="Time step"
+              value={config.rd.dt}
+              onChange={(v) => dispatch(setRD({ dt: v }))}
+              min={0.2}
+              max={1.2}
+              step={0.05}
+              formatValue={(v) => v.toFixed(2)}
+            />
           </CollapsibleSection>
         )}
 

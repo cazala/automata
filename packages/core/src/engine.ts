@@ -65,7 +65,10 @@ const DEFAULT_RENDER: RenderConfig = {
   gridThreshold: 8,
 };
 
-const MAX_STEPS_PER_FRAME = 16;
+// Backlog cap per rAF frame: at 60fps this bounds the top simulation rate
+// (64 * 60 ≈ 3840 steps/s) and keeps a heavy automaton from death-spiraling —
+// when the cap is hit the accumulator resets and the backlog is dropped.
+const MAX_STEPS_PER_FRAME = 64;
 
 export class Engine {
   private canvas: HTMLCanvasElement;

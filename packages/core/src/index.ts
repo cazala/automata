@@ -21,6 +21,8 @@ export type { ElementaryOptions } from "./automata/elementary";
 export { Neural, WORMS_KERNEL, WORMS_GAUSS_WIDTH } from "./automata/neural";
 export { Pokemon, POKEMON_TYPES, POKEMON_TYPE_COUNT } from "./automata/pokemon";
 export type { PokemonOptions, PokemonTypeInfo } from "./automata/pokemon";
+export { ReactionDiffusion } from "./automata/reaction-diffusion";
+export type { ReactionDiffusionOptions } from "./automata/reaction-diffusion";
 export type {
   NeuralOptions,
   Activation,
