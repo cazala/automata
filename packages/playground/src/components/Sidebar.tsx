@@ -10,6 +10,9 @@ import {
   setPokemon,
   togglePokemonType,
   setRD,
+  setBrain,
+  setCyclic,
+  setLenia,
   setRender,
   setInit,
   ACTIVATION_GAUSSIAN,
@@ -328,6 +331,9 @@ export function Sidebar() {
             { value: "neural", label: "Neural CA" },
             { value: "pokemon", label: "Pokemon" },
             { value: "rd", label: "Reaction-Diffusion" },
+            { value: "brain", label: "Brian's Brain" },
+            { value: "cyclic", label: "Cyclic (spirals)" },
+            { value: "lenia", label: "Lenia (continuous)" },
           ]}
         />
 
@@ -630,6 +636,83 @@ export function Sidebar() {
               min={0.2}
               max={1.2}
               step={0.05}
+              formatValue={(v) => v.toFixed(2)}
+            />
+          </CollapsibleSection>
+        )}
+
+        {config.type === "brain" && (
+          <CollapsibleSection title="Brian's Brain">
+            <Slider
+              label="Firing neighbors to ignite"
+              value={config.brain.birth}
+              onChange={(v) => dispatch(setBrain({ birth: v }))}
+              min={1}
+              max={4}
+              step={1}
+            />
+          </CollapsibleSection>
+        )}
+
+        {config.type === "cyclic" && (
+          <CollapsibleSection title="Cyclic rule">
+            <Slider
+              label="States"
+              value={config.cyclic.states}
+              onChange={(v) => {
+                dispatch(setCyclic({ states: v }));
+                dispatch(requestInit()); // stale state indices need a re-seed
+              }}
+              min={3}
+              max={20}
+              step={1}
+            />
+            <Slider
+              label="Threshold"
+              value={config.cyclic.threshold}
+              onChange={(v) => dispatch(setCyclic({ threshold: v }))}
+              min={1}
+              max={4}
+              step={1}
+            />
+          </CollapsibleSection>
+        )}
+
+        {config.type === "lenia" && (
+          <CollapsibleSection title="Lenia">
+            <Slider
+              label="Kernel radius"
+              value={config.lenia.radius}
+              onChange={(v) => dispatch(setLenia({ radius: v }))}
+              min={4}
+              max={16}
+              step={1}
+            />
+            <Slider
+              label="Growth center (mu)"
+              value={config.lenia.mu}
+              onChange={(v) => dispatch(setLenia({ mu: v }))}
+              min={0.05}
+              max={0.4}
+              step={0.005}
+              formatValue={(v) => v.toFixed(3)}
+            />
+            <Slider
+              label="Growth width (sigma)"
+              value={config.lenia.sigma}
+              onChange={(v) => dispatch(setLenia({ sigma: v }))}
+              min={0.005}
+              max={0.06}
+              step={0.001}
+              formatValue={(v) => v.toFixed(3)}
+            />
+            <Slider
+              label="Time step"
+              value={config.lenia.dt}
+              onChange={(v) => dispatch(setLenia({ dt: v }))}
+              min={0.02}
+              max={0.5}
+              step={0.01}
               formatValue={(v) => v.toFixed(2)}
             />
           </CollapsibleSection>

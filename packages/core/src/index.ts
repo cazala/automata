@@ -23,6 +23,12 @@ export { Pokemon, POKEMON_TYPES, POKEMON_TYPE_COUNT } from "./automata/pokemon";
 export type { PokemonOptions, PokemonTypeInfo } from "./automata/pokemon";
 export { ReactionDiffusion } from "./automata/reaction-diffusion";
 export type { ReactionDiffusionOptions } from "./automata/reaction-diffusion";
+export { BriansBrain } from "./automata/brain";
+export type { BriansBrainOptions } from "./automata/brain";
+export { Cyclic, cyclicColor } from "./automata/cyclic";
+export type { CyclicOptions } from "./automata/cyclic";
+export { Lenia } from "./automata/lenia";
+export type { LeniaOptions } from "./automata/lenia";
 export type {
   NeuralOptions,
   Activation,

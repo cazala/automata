@@ -14,6 +14,10 @@ import {
   POKEMON_TYPES,
   POKEMON_TYPE_COUNT,
   ReactionDiffusion,
+  BriansBrain,
+  Cyclic,
+  cyclicColor,
+  Lenia,
   type Activation,
   type Automaton,
   type RenderConfig,
@@ -107,11 +111,25 @@ function buildAutomaton(config: ConfigState): Automaton {
         diffV: config.rd.diffV,
         dt: config.rd.dt,
       });
+    case "brain":
+      return new BriansBrain({ birth: config.brain.birth });
+    case "cyclic":
+      return new Cyclic({
+        states: config.cyclic.states,
+        threshold: config.cyclic.threshold,
+      });
+    case "lenia":
+      return new Lenia({
+        radius: config.lenia.radius,
+        mu: config.lenia.mu,
+        sigma: config.lenia.sigma,
+        dt: config.lenia.dt,
+      });
   }
 }
 
 function renderConfigFrom(config: ConfigState): Partial<RenderConfig> {
-  if (config.type === "pokemon") {
+  if (config.type === "pokemon" || config.type === "cyclic") {
     // Cells carry their own palette rgb; a black->white ramp makes the
     // channel-wise mix an identity so the type colors display verbatim.
     return {
@@ -214,6 +232,56 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (cfg.type === "cyclic") {
+      // Uniform random states; spirals wind up from the noise.
+      const n = Math.max(3, cfg.cyclic.states);
+      const data = new Float32Array(width * height * 4);
+      for (let i = 0; i < width * height; i++) {
+        const st = Math.floor(Math.random() * n);
+        const [r, g, b] = cyclicColor(st, n);
+        const base = i * 4;
+        data[base] = r;
+        data[base + 1] = g;
+        data[base + 2] = b;
+        data[base + 3] = st;
+      }
+      engine.setCells(data);
+      return;
+    }
+
+    if (cfg.type === "lenia") {
+      // Blobs of continuous noise; uniform noise everywhere mostly cancels
+      // itself out, while blob-scale patches match the kernel radius.
+      const data = new Float32Array(width * height);
+      const R = Math.max(4, cfg.lenia.radius);
+      const count = Math.max(1, Math.round(cfg.init.density * 150));
+      for (let k = 0; k < count; k++) {
+        const sx = Math.floor(Math.random() * width);
+        const sy = Math.floor(Math.random() * height);
+        const size = R + Math.floor(Math.random() * R);
+        for (let dy = 0; dy < size; dy++) {
+          for (let dx = 0; dx < size; dx++) {
+            const px = (sx + dx) % width;
+            const py = (sy + dy) % height;
+            data[py * width + px] = Math.random();
+          }
+        }
+      }
+      if (cfg.init.mode === "center") {
+        data.fill(0);
+        for (let dy = -R; dy < R; dy++) {
+          for (let dx = -R; dx < R; dx++) {
+            const px = (cx + dx + width) % width;
+            const py = (cy + dy + height) % height;
+            data[py * width + px] = Math.random();
+          }
+        }
+      }
+      if (cfg.init.mode === "clear") data.fill(0);
+      engine.setCells(data);
+      return;
+    }
+
     if (cfg.type === "pokemon") {
       // Every cell starts as a random enabled type; the field self-organizes
       // from noise. Disabled types can never re-emerge, since cells only ever
@@ -255,7 +323,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // life (single channel, so "noise" and "random" coincide)
+    // life & brian's brain (single channel, "noise" and "random" coincide)
     if (cfg.init.mode === "random" || cfg.init.mode === "noise") {
       engine.randomize(cfg.init.density);
     } else if (cfg.init.mode === "center") {
@@ -510,6 +578,32 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       a.setDt(config.rd.dt);
     }
   }, [config.rd.feed, config.rd.kill, config.rd.diffU, config.rd.diffV, config.rd.dt]);
+
+  // Brian's Brain realtime params.
+  useEffect(() => {
+    const a = automatonRef.current;
+    if (a instanceof BriansBrain) a.setBirth(config.brain.birth);
+  }, [config.brain.birth]);
+
+  // Cyclic realtime params.
+  useEffect(() => {
+    const a = automatonRef.current;
+    if (a instanceof Cyclic) {
+      a.setStates(config.cyclic.states);
+      a.setThreshold(config.cyclic.threshold);
+    }
+  }, [config.cyclic.states, config.cyclic.threshold]);
+
+  // Lenia params (radius is structural and rebuilds; the rest are realtime).
+  useEffect(() => {
+    const a = automatonRef.current;
+    if (a instanceof Lenia) {
+      a.setRadius(config.lenia.radius);
+      a.setMu(config.lenia.mu);
+      a.setSigma(config.lenia.sigma);
+      a.setDt(config.lenia.dt);
+    }
+  }, [config.lenia.radius, config.lenia.mu, config.lenia.sigma, config.lenia.dt]);
 
   // Steps per second.
   useEffect(() => {

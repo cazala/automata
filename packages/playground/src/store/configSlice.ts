@@ -13,7 +13,15 @@ export function maxStepsPerSecond(type: AutomatonType): number {
   return type === "rd" ? 1000 : 200;
 }
 
-export type AutomatonType = "life" | "elementary" | "neural" | "pokemon" | "rd";
+export type AutomatonType =
+  | "life"
+  | "elementary"
+  | "neural"
+  | "pokemon"
+  | "rd"
+  | "brain"
+  | "cyclic"
+  | "lenia";
 
 export interface LifeConfig {
   birth: number;
@@ -57,6 +65,23 @@ export interface RDConfig {
   dt: number;
 }
 
+export interface BrainConfig {
+  /** Firing neighbours required to fire (default 2). */
+  birth: number;
+}
+
+export interface CyclicConfig {
+  states: number;
+  threshold: number;
+}
+
+export interface LeniaConfig {
+  radius: number;
+  mu: number;
+  sigma: number;
+  dt: number;
+}
+
 /** Grid dimensions derive from the canvas; edges always wrap (toroidal). */
 export interface GridConfig {
   wrap: boolean;
@@ -84,6 +109,9 @@ export interface ConfigState {
   neural: NeuralConfig;
   pokemon: PokemonConfig;
   rd: RDConfig;
+  brain: BrainConfig;
+  cyclic: CyclicConfig;
+  lenia: LeniaConfig;
   grid: GridConfig;
   render: RenderConfigUI;
   init: InitConfig;
@@ -118,6 +146,9 @@ export const defaultConfig: ConfigState = {
     enabled: new Array(POKEMON_TYPE_COUNT).fill(true),
   },
   rd: { feed: 0.0545, kill: 0.062, diffU: 1.0, diffV: 0.5, dt: 1.0 },
+  brain: { birth: 2 },
+  cyclic: { states: 14, threshold: 1 },
+  lenia: { radius: 10, mu: 0.15, sigma: 0.023, dt: 0.1 },
   grid: { wrap: true },
   render: {
     colorOn: "#c8d8ff",
@@ -176,6 +207,15 @@ const configSlice = createSlice({
     setRD(state, action: PayloadAction<Partial<RDConfig>>) {
       Object.assign(state.rd, action.payload);
     },
+    setBrain(state, action: PayloadAction<Partial<BrainConfig>>) {
+      Object.assign(state.brain, action.payload);
+    },
+    setCyclic(state, action: PayloadAction<Partial<CyclicConfig>>) {
+      Object.assign(state.cyclic, action.payload);
+    },
+    setLenia(state, action: PayloadAction<Partial<LeniaConfig>>) {
+      Object.assign(state.lenia, action.payload);
+    },
     setGrid(state, action: PayloadAction<Partial<GridConfig>>) {
       Object.assign(state.grid, action.payload);
     },
@@ -202,6 +242,9 @@ export const {
   setPokemon,
   togglePokemonType,
   setRD,
+  setBrain,
+  setCyclic,
+  setLenia,
   setGrid,
   setRender,
   setInit,
