@@ -58,19 +58,25 @@ const MAX_CELLS = 2048;
 
 /**
  * Initial cell size in CSS pixels. The grid is sized so every display boots at
- * this cell size regardless of resolution (a 2560px-wide desktop gets ~2048
- * cells, a 390px-wide phone ~312), capped at MAX_CELLS on huge screens.
+ * this cell size regardless of resolution (a 2560px-wide desktop gets ~1707
+ * cells, a 390px-wide phone ~260), capped at MAX_CELLS on huge screens.
  * ensureGridCovers() keeps the coverage as the user zooms/resizes after that.
  */
-const CELL_PX = 1.5;
+const DEFAULT_CELL_PX = 1.5;
+const REACTION_CELL_PX = 1;
 
 const clampCells = (n: number) =>
   Math.max(MIN_CELLS, Math.min(MAX_CELLS, Math.round(n)));
 
-function gridForCanvas(cssW: number, cssH: number) {
+function cellPxForType(type: ConfigState["type"]): number {
+  return type === "rd" ? REACTION_CELL_PX : DEFAULT_CELL_PX;
+}
+
+function gridForCanvas(cssW: number, cssH: number, type: ConfigState["type"]) {
+  const cellPx = cellPxForType(type);
   return {
-    width: clampCells(Math.ceil(cssW / CELL_PX)),
-    height: clampCells(Math.ceil(cssH / CELL_PX)),
+    width: clampCells(Math.ceil(cssW / cellPx)),
+    height: clampCells(Math.ceil(cssH / cellPx)),
   };
 }
 
@@ -359,7 +365,8 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       automatonRef.current = automaton;
       const grid = gridForCanvas(
         canvas.clientWidth || window.innerWidth,
-        canvas.clientHeight || window.innerHeight
+        canvas.clientHeight || window.innerHeight,
+        cfg.type
       );
       const engine = new Engine({
         canvas,
@@ -497,10 +504,18 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
-    const automaton = buildAutomaton(configRef.current);
+    const cfg = configRef.current;
+    const automaton = buildAutomaton(cfg);
     automatonRef.current = automaton;
-    engine.setRenderConfig(renderConfigFrom(configRef.current));
+    engine.setRenderConfig(renderConfigFrom(cfg));
     engine.setAutomaton(automaton);
+    const size = engine.getSize();
+    const grid = gridForCanvas(size.width, size.height, cfg.type);
+    const current = engine.getGridSize();
+    if (current.width !== grid.width || current.height !== grid.height) {
+      engine.resize(grid.width, grid.height);
+    }
+    engine.coverGrid();
     applyInit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.type]);

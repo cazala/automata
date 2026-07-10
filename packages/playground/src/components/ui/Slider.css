@@ -75,3 +75,25 @@
   position: relative;
   width: 100%;
 }
+
+@media (max-width: 768px) {
+  .slider {
+    height: 8px;
+    margin-top: 14px;
+    opacity: 0.9;
+  }
+
+  .slider::-webkit-slider-thumb {
+    width: 28px;
+    height: 28px;
+  }
+
+  .slider::-moz-range-thumb {
+    width: 28px;
+    height: 28px;
+  }
+
+  .slider-container {
+    padding: 4px 0 8px;
+  }
+}

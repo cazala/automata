@@ -202,7 +202,7 @@ function constrainNeural(neural: NeuralConfig): void {
 
 function constrainPokemon(pokemon: PokemonConfig): void {
   pokemon.threshold = Math.round(clamp(finite(pokemon.threshold, 3), 1, 3));
-  pokemon.regionSize = clamp(finite(pokemon.regionSize, 4), 4, 128);
+  pokemon.regionSize = clamp(finite(pokemon.regionSize, 4), 4, 24);
   if (!Array.isArray(pokemon.enabled) || pokemon.enabled.length !== POKEMON_TYPE_COUNT) {
     pokemon.enabled = new Array(POKEMON_TYPE_COUNT).fill(true);
   }

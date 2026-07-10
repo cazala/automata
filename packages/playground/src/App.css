@@ -12,16 +12,6 @@
   display: flex;
   flex: 1;
   min-height: 0;
-}
-
-.app.bars-visible .app-content {
-  margin-top: 60px;
-  height: calc(100vh - 60px);
-  height: calc(100dvh - 60px);
-}
-
-.app.bars-hidden .app-content {
-  margin-top: 0;
   height: 100vh;
   height: 100dvh;
 }
@@ -32,6 +22,10 @@
   background: var(--color-canvas);
   position: relative;
   overflow: hidden;
+}
+
+.mobile-reset-button {
+  display: none;
 }
 
 .webgpu-unavailable {
@@ -57,16 +51,32 @@ body {
   background: var(--color-canvas);
 }
 
-/* Mobile: no top bar; the canvas fills the screen and the sidebar overlays
-   it as a bottom sheet (see Sidebar.css). */
+/* Mobile: the canvas fills the screen and the sidebar overlays it as a bottom
+   sheet (see Sidebar.css). */
 @media (max-width: 768px) {
-  .top-bar {
-    display: none;
+  .mobile-reset-button {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    right: calc(12px + env(safe-area-inset-right));
+    z-index: 520;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    background: rgba(20, 20, 28, 0.82);
+    color: var(--color-text-primary);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .app.bars-visible .app-content {
-    margin-top: 0;
-    height: 100vh;
-    height: 100dvh;
+  .mobile-reset-button:active {
+    transform: scale(0.96);
+    background: rgba(35, 35, 46, 0.9);
   }
 }

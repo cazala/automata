@@ -5,16 +5,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Dark scrim strongest behind the centered card, easing off toward the
-     edges so the live demo stays visible there. */
-  background: radial-gradient(
-    ellipse at center,
-    rgba(5, 5, 10, 0.96) 0%,
-    rgba(5, 5, 10, 0.88) 30%,
-    rgba(5, 5, 10, 0.55) 55%,
-    rgba(5, 5, 10, 0.15) 85%
-  );
-  /* backdrop-filter: blur(1px); */
+  overflow: hidden;
   /* Splash screen: no text selection, tap flashes, or double-tap zoom. */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -22,13 +13,49 @@
   user-select: none;
 }
 
+.homepage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(5, 5, 10, 0.96) 0%,
+    rgba(5, 5, 10, 0.88) 30%,
+    rgba(5, 5, 10, 0.55) 55%,
+    rgba(5, 5, 10, 0.15) 85%
+  );
+  opacity: 1;
+  transition: opacity 680ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.app.entering-playground .homepage {
+  pointer-events: none;
+}
+
+.app.entering-playground .homepage::before {
+  opacity: 0;
+}
+
 .homepage-card {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   max-width: 460px;
   padding: 40px;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform 680ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 520ms ease;
+}
+
+.app.entering-playground .homepage-card {
+  opacity: 0;
+  transform: translate3d(-42vw, 0, 0);
 }
 
 .homepage-title {
@@ -77,4 +104,10 @@
 .homepage-warning-icon {
   color: var(--color-active-pause);
   margin-bottom: 12px;
+}
+
+@media (max-width: 768px) {
+  .app.entering-playground .homepage-card {
+    transform: translate3d(0, -34vh, 0);
+  }
 }

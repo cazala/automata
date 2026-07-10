@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { countsToMask, maskToCounts, POKEMON_TYPES, WORMS_KERNEL } from "@cazala/automata";
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
@@ -11,18 +12,12 @@ import {
   togglePokemonType,
   setRD,
   setLenia,
-  setRender,
   setInit,
   ACTIVATION_GAUSSIAN,
   type AutomatonType,
-  type InitMode,
 } from "../store/configSlice";
 import { requestInit } from "../store/uiSlice";
-import { CollapsibleSection } from "./ui/CollapsibleSection";
 import { Slider } from "./ui/Slider";
-import { Dropdown } from "./ui/Dropdown";
-import { Checkbox } from "./ui/Checkbox";
-import { ColorInput } from "./ui/ColorInput";
 import { Button } from "./ui/Button";
 import { Field } from "./ui/Field";
 import "./Sidebar.css";
@@ -32,7 +27,7 @@ const LIFE_PRESETS: Record<
   { label: string; birth: number[]; survival: number[]; density: number }
 > = {
   conway: {
-    label: "Conway (B3/S23)",
+    label: "Conway",
     birth: [3],
     survival: [2, 3],
     density: 0.5,
@@ -44,30 +39,56 @@ const LIFE_PRESETS: Record<
     density: 0.5,
   },
   maze: {
-    label: "Maze (B3/S12345)",
+    label: "Maze",
     birth: [3],
     survival: [1, 2, 3, 4, 5],
     density: 0.02,
+  },
+  coral: {
+    label: "Coral",
+    birth: [3],
+    survival: [4, 5, 6, 7, 8],
+    density: 0.08,
   },
 };
 
 const ELEMENTARY_PRESETS = [30, 54, 60, 90, 110, 150, 184, 250];
 
-/** Classic Gray-Scott (feed, kill) operating points. */
-const RD_PRESETS: Record<string, { label: string; feed: number; kill: number }> = {
-  coral: { label: "Coral growth", feed: 0.0545, kill: 0.062 },
-  mitosis: { label: "Mitosis", feed: 0.0367, kill: 0.0649 },
-  solitons: { label: "Solitons", feed: 0.03, kill: 0.062 },
-  worms: { label: "Worms", feed: 0.046, kill: 0.063 },
-};
+interface ChoiceOption {
+  value: string;
+  label: string;
+}
 
-const approxTight = (a: number, b: number) => Math.abs(a - b) < 0.0005;
-
-function detectRDPreset(rd: { feed: number; kill: number }): string {
-  for (const [key, p] of Object.entries(RD_PRESETS)) {
-    if (approxTight(rd.feed, p.feed) && approxTight(rd.kill, p.kill)) return key;
-  }
-  return "custom";
+function ChoiceGroup({
+  label,
+  value,
+  options,
+  onChange,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  options: ChoiceOption[];
+  onChange: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <Field className={`choice-field ${className}`}>
+      <label>{label}</label>
+      <div className="choice-grid">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            className={`choice-button ${value === option.value ? "active" : ""}`}
+            onClick={() => onChange(option.value)}
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </Field>
+  );
 }
 
 function NeighborMask({
@@ -321,23 +342,24 @@ export function Sidebar() {
           <h3>Configuration</h3>
         </div>
 
-        <Dropdown
+        <ChoiceGroup
           label="Automaton"
           value={config.type}
           onChange={(v) => dispatch(setType(v as AutomatonType))}
+          className="automaton-choice"
           options={[
-            { value: "life", label: "Life-like (2D)" },
-            { value: "elementary", label: "Elementary (1D)" },
-            { value: "neural", label: "Neural CA" },
+            { value: "life", label: "Life" },
+            { value: "elementary", label: "Elementary" },
+            { value: "neural", label: "Neural" },
             { value: "pokemon", label: "Pokemon" },
-            { value: "rd", label: "Reaction-Diffusion" },
-            { value: "lenia", label: "Lenia (continuous)" },
+            { value: "rd", label: "Reaction" },
+            { value: "lenia", label: "Lenia" },
           ]}
         />
 
         {config.type === "life" && (
-          <CollapsibleSection title="Life rule">
-            <Dropdown
+          <>
+            <ChoiceGroup
               label="Preset"
               value={lifePresetValue}
               onChange={(v) => {
@@ -359,7 +381,6 @@ export function Sidebar() {
                   value,
                   label: p.label,
                 })),
-                { value: "custom", label: "Custom" },
               ]}
             />
             <NeighborMask
@@ -372,11 +393,11 @@ export function Sidebar() {
               mask={config.life.survival}
               onChange={(m) => dispatch(setLife({ survival: m }))}
             />
-          </CollapsibleSection>
+          </>
         )}
 
         {config.type === "elementary" && (
-          <CollapsibleSection title="Elementary rule">
+          <>
             <Slider
               label="Rule"
               value={config.elementary.rule}
@@ -385,7 +406,7 @@ export function Sidebar() {
               max={255}
               step={1}
             />
-            <Dropdown
+            <ChoiceGroup
               label="Preset"
               value={String(config.elementary.rule)}
               onChange={(v) => dispatch(setElementaryRule(parseInt(v)))}
@@ -394,77 +415,73 @@ export function Sidebar() {
                 label: `Rule ${r}`,
               }))}
             />
-          </CollapsibleSection>
+          </>
         )}
 
         {config.type === "neural" && (
           <>
-            <CollapsibleSection title="Neural CA">
-              {config.neural.activation === ACTIVATION_GAUSSIAN && (
-                <Slider
-                  label="Gaussian width"
-                  value={config.neural.gaussWidth}
-                  onChange={(v) => dispatch(setNeural({ gaussWidth: v }))}
-                  min={0.6}
-                  max={0.7}
-                  step={0.01}
-                  formatValue={(v) => v.toFixed(2)}
-                />
-              )}
-            </CollapsibleSection>
-
-            <CollapsibleSection title="Convolution kernel">
+            {config.neural.activation === ACTIVATION_GAUSSIAN && (
               <Slider
-                label="Center"
-                value={config.neural.kCenter}
-                onChange={(v) => dispatch(setNeural({ kCenter: v }))}
-                min={-1}
-                max={-0.5}
-                step={0.01}
-                formatValue={(v) => v.toFixed(2)}
-              />
-              <Slider
-                label="Edge"
-                value={config.neural.kEdge}
-                onChange={(v) => dispatch(setNeural({ kEdge: v }))}
-                min={-1.5}
-                max={-0.9}
-                step={0.01}
-                formatValue={(v) => v.toFixed(2)}
-              />
-              <Slider
-                label="Corner"
-                value={config.neural.kCorner}
-                onChange={(v) => dispatch(setNeural({ kCorner: v }))}
-                min={0.4}
+                label="Gaussian width"
+                value={config.neural.gaussWidth}
+                onChange={(v) => dispatch(setNeural({ gaussWidth: v }))}
+                min={0.6}
                 max={0.7}
                 step={0.01}
                 formatValue={(v) => v.toFixed(2)}
               />
-              <KernelPreview
-                center={config.neural.kCenter}
-                edge={config.neural.kEdge}
-                corner={config.neural.kCorner}
-              />
-              <Button
-                onClick={() =>
-                  dispatch(
-                    setNeural({
-                      kCenter: WORMS_KERNEL.center,
-                      kEdge: WORMS_KERNEL.edge,
-                      kCorner: WORMS_KERNEL.corner,
-                    })
-                  )
-                }
-              >
-                Reset kernel
-              </Button>
-            </CollapsibleSection>
+            )}
+            <Slider
+              label="Kernel center"
+              value={config.neural.kCenter}
+              onChange={(v) => dispatch(setNeural({ kCenter: v }))}
+              min={-1}
+              max={-0.5}
+              step={0.01}
+              formatValue={(v) => v.toFixed(2)}
+            />
+            <Slider
+              label="Kernel edge"
+              value={config.neural.kEdge}
+              onChange={(v) => dispatch(setNeural({ kEdge: v }))}
+              min={-1.5}
+              max={-0.9}
+              step={0.01}
+              formatValue={(v) => v.toFixed(2)}
+            />
+            <Slider
+              label="Kernel corner"
+              value={config.neural.kCorner}
+              onChange={(v) => dispatch(setNeural({ kCorner: v }))}
+              min={0.4}
+              max={0.7}
+              step={0.01}
+              formatValue={(v) => v.toFixed(2)}
+            />
+            <KernelPreview
+              center={config.neural.kCenter}
+              edge={config.neural.kEdge}
+              corner={config.neural.kCorner}
+            />
+            <Button
+              className="sidebar-inline-action"
+              onClick={() =>
+                dispatch(
+                  setNeural({
+                    kCenter: WORMS_KERNEL.center,
+                    kEdge: WORMS_KERNEL.edge,
+                    kCorner: WORMS_KERNEL.corner,
+                  })
+                )
+              }
+            >
+              Reset kernel
+            </Button>
           </>
         )}
 
         {config.type === "pokemon" && (
-          <CollapsibleSection title="Pokemon battle">
+          <>
             <Slider
               label="Conversion threshold"
               value={config.pokemon.threshold}
@@ -484,32 +501,15 @@ export function Sidebar() {
                 dispatch(requestInit()); // re-seed with the new mosaic scale
               }}
               min={4}
-              max={128}
+              max={24}
               step={4}
             />
             <PokemonLegend />
-          </CollapsibleSection>
+          </>
         )}
 
         {config.type === "rd" && (
-          <CollapsibleSection title="Gray-Scott model">
-            <Dropdown
-              label="Preset"
-              value={detectRDPreset(config.rd)}
-              onChange={(v) => {
-                const p = RD_PRESETS[v];
-                if (!p) return;
-                dispatch(setRD({ feed: p.feed, kill: p.kill }));
-                dispatch(requestInit());
-              }}
-              options={[
-                ...Object.entries(RD_PRESETS).map(([value, p]) => ({
-                  value,
-                  label: p.label,
-                })),
-                { value: "custom", label: "Custom" },
-              ]}
-            />
+          <>
             <Slider
               label="Feed rate"
               value={config.rd.feed}
@@ -546,11 +546,11 @@ export function Sidebar() {
               step={0.01}
               formatValue={(v) => v.toFixed(2)}
             />
-          </CollapsibleSection>
+          </>
         )}
 
         {config.type === "lenia" && (
-          <CollapsibleSection title="Lenia">
+          <>
             <Slider
               label="Growth center (mu)"
               value={config.lenia.mu}
@@ -569,66 +569,19 @@ export function Sidebar() {
               step={0.001}
               formatValue={(v) => v.toFixed(3)}
             />
-          </CollapsibleSection>
+          </>
         )}
-
-        <CollapsibleSection title="Appearance" defaultOpen={false}>
-          {config.type !== "pokemon" && (
-            <>
-              <ColorInput
-                label="On color"
-                value={config.render.colorOn}
-                onChange={(v) => dispatch(setRender({ colorOn: v }))}
-              />
-              <ColorInput
-                label="Off color"
-                value={config.render.colorOff}
-                onChange={(v) => dispatch(setRender({ colorOff: v }))}
-              />
-            </>
-          )}
-          <ColorInput
-            label="Background"
-            value={config.render.colorBg}
-            onChange={(v) => dispatch(setRender({ colorBg: v }))}
-          />
-          <Checkbox
-            label="Show grid lines (when zoomed in)"
-            checked={config.render.showGrid}
-            onChange={(c) => dispatch(setRender({ showGrid: c }))}
-          />
-        </CollapsibleSection>
-
-        {config.type !== "pokemon" && (
-        <CollapsibleSection title="Initial state" defaultOpen={false}>
-          <Dropdown
-            label="Pattern"
-            value={config.init.mode}
-            onChange={(v) => dispatch(setInit({ mode: v as InitMode }))}
-            options={[
-              { value: "random", label: "Random soup" },
-              ...(config.type === "neural"
-                ? [{ value: "noise", label: "Per-channel noise" }]
-                : []),
-              { value: "center", label: "Center seed" },
-              { value: "clear", label: "Empty" },
-            ]}
-          />
-          <Slider
-            label="Density"
-            value={config.init.density}
-            onChange={(v) => dispatch(setInit({ density: v }))}
-            min={0}
-            max={1}
-            step={0.01}
-            disabled={config.init.mode !== "random" && config.init.mode !== "noise"}
-            formatValue={(v) => v.toFixed(2)}
-          />
-          <Button variant="primary" onClick={() => engine.reset()}>
-            Apply initial state
-          </Button>
-        </CollapsibleSection>
-        )}
+      </div>
+      <div className="sidebar-footer">
+        <Button
+          variant="primary"
+          className="sidebar-reset-button"
+          onClick={() => engine.reset()}
+          title="Reset simulation"
+        >
+          <RotateCcw size={16} />
+          Reset simulation
+        </Button>
       </div>
     </div>
   );
