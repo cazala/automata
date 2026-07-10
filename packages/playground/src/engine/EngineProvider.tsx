@@ -23,6 +23,7 @@ import {
   type RenderConfig,
 } from "@cazala/automata";
 import { hexToRgba } from "../utils/color";
+import { isMobileDevice } from "../utils/deviceCapabilities";
 import { useAppDispatch, useAppSelector } from "../store";
 import { setFps, setPlaying } from "../store/uiSlice";
 import type { ConfigState } from "../store/configSlice";
@@ -41,6 +42,7 @@ interface EngineApi {
   paintCell: (worldX: number, worldY: number, value: number) => void;
   screenToWorld: (sx: number, sy: number) => { x: number; y: number };
   handleWheel: (deltaY: number, cx: number, cy: number) => void;
+  zoomAt: (factor: number, cx: number, cy: number) => void;
   panBy: (dxCss: number, dyCss: number) => void;
   resizeCanvas: (cssW: number, cssH: number) => void;
   resetView: () => void;
@@ -357,6 +359,9 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       });
       engineRef.current = engine;
       await engine.initialize();
+      // On touch devices the boot view is the max zoom-out: pinching can only
+      // zoom in, so the grid never grows past what a phone GPU handles.
+      if (isMobileDevice()) engine.setCoverMinZoom(true);
       engine.coverGrid();
       applyInit();
       // Start a live demo behind the homepage overlay.
@@ -434,14 +439,13 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const handleWheel = useCallback(
-    (deltaY: number, cx: number, cy: number) => {
+  /** Zoom by a factor keeping the world point under (cx, cy) fixed. */
+  const zoomAt = useCallback(
+    (factor: number, cx: number, cy: number) => {
       const engine = engineRef.current;
       if (!engine) return;
-      const zoomFactor = Math.pow(0.95, deltaY * 0.01);
-      const current = engine.getZoom();
       const before = screenToWorld(cx, cy);
-      engine.setZoom(current * zoomFactor);
+      engine.setZoom(engine.getZoom() * factor);
       const after = screenToWorld(cx, cy);
       const camera = engine.getCamera();
       engine.setCamera(
@@ -451,6 +455,13 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       engine.ensureGridCovers();
     },
     [screenToWorld]
+  );
+
+  const handleWheel = useCallback(
+    (deltaY: number, cx: number, cy: number) => {
+      zoomAt(Math.pow(0.95, deltaY * 0.01), cx, cy);
+    },
+    [zoomAt]
   );
 
   const panBy = useCallback((dxCss: number, dyCss: number) => {
@@ -643,6 +654,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     panBy,
     resizeCanvas,
     resetView,
+    zoomAt,
   };
 
   return <EngineContext.Provider value={api}>{children}</EngineContext.Provider>;

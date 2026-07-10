@@ -82,6 +82,8 @@ export class Engine {
   private channels = 1;
   /** Per-dimension cap for ensureGridCovers() growth; also bounds min zoom. */
   private maxCells: number;
+  /** When true, the min zoom is the grid-covers-viewport zoom (no zoom-out growth). */
+  private coverMinZoom = false;
 
   private stepsPerSecond: number;
   private renderConfig: RenderConfig;
@@ -343,6 +345,7 @@ export class Engine {
   resize(width: number, height: number): void {
     this.gridW = Math.max(1, Math.floor(width));
     this.gridH = Math.max(1, Math.floor(height));
+    this.updateZoomLimits();
     this.rowCounter = 0;
     if (this.device && this.cellBuffers) {
       this.cellBuffers.forEach((b) => b.destroy());
@@ -442,6 +445,7 @@ export class Engine {
     this.current = 0;
     this.gridW = newW;
     this.gridH = newH;
+    this.updateZoomLimits();
     this.rebuildBindGroups();
   }
 
@@ -739,10 +743,23 @@ export class Engine {
     if (this.initialized) this.render();
   }
 
-  /** Zooming out further than this would need a grid beyond maxCells to cover. */
+  /**
+   * Min zoom is either the point where a maxCells grid covers the viewport
+   * (desktop: zooming out grows the grid), or — with coverMinZoom — the point
+   * where the *current* grid covers it (mobile: boot view is max zoom-out).
+   */
   private updateZoomLimits(): void {
     const { width, height } = this.view.getSize();
-    this.view.setZoomLimits(Math.max(width, height) / this.maxCells, 64);
+    const min = this.coverMinZoom
+      ? Math.max(width / this.gridW, height / this.gridH)
+      : Math.max(width, height) / this.maxCells;
+    this.view.setZoomLimits(min, 64);
+  }
+
+  /** Pin the minimum zoom to the grid-covers-viewport level (mobile). */
+  setCoverMinZoom(on: boolean): void {
+    this.coverMinZoom = on;
+    this.updateZoomLimits();
   }
 
   getSize(): { width: number; height: number } {

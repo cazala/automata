@@ -76,18 +76,52 @@ export function Canvas() {
     }
   };
 
-  // Pointer interaction.
+  // Pointer interaction. Mouse: paint/pan on drag as before. Touch: one
+  // finger paints (deferred past pointerdown so a starting pinch never leaves
+  // a stray dot), two fingers pinch-zoom around their midpoint and pan with it.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const pointers = new Map<number, { x: number; y: number }>();
+    // Touch finger that hasn't painted yet (tap paints on release).
+    let pendingTouchPaint: number | null = null;
+    let pinch: { dist: number; mid: { x: number; y: number } } | null = null;
+
+    const pinchState = () => {
+      const [a, b] = [...pointers.values()];
+      return {
+        dist: Math.max(20, Math.hypot(b.x - a.x, b.y - a.y)),
+        mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      };
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       e.preventDefault();
-      canvas.setPointerCapture(e.pointerId);
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        /* capture can fail for exotic/synthetic pointers; tracking still works */
+      }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pointers.size === 2) {
+        // Second finger: cancel any paint/pan in progress, start pinching.
+        painting.current = false;
+        panning.current = false;
+        pendingTouchPaint = null;
+        pinch = pinchState();
+        return;
+      }
+      if (pointers.size > 2) return;
+
       const isPanButton = e.button === 1 || e.button === 2 || toolRef.current === "pan";
       if (isPanButton) {
         panning.current = true;
         lastPan.current = { x: e.clientX, y: e.clientY };
+      } else if (e.pointerType === "touch") {
+        pendingTouchPaint = e.pointerId;
+        paintValue.current = toolRef.current === "erase" ? 0 : 1;
       } else {
         painting.current = true;
         paintValue.current = toolRef.current === "erase" ? 0 : 1;
@@ -96,6 +130,26 @@ export function Canvas() {
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (!pointers.has(e.pointerId)) {
+        if (painting.current) paintAt(e.clientX, e.clientY);
+        return;
+      }
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (pinch && pointers.size >= 2) {
+        const next = pinchState();
+        const rect = canvas.getBoundingClientRect();
+        engine.zoomAt(next.dist / pinch.dist, next.mid.x - rect.left, next.mid.y - rect.top);
+        engine.panBy(next.mid.x - pinch.mid.x, next.mid.y - pinch.mid.y);
+        pinch = next;
+        return;
+      }
+
+      if (pendingTouchPaint === e.pointerId) {
+        // Finger moved without a second finger joining: it's a paint stroke.
+        pendingTouchPaint = null;
+        painting.current = true;
+      }
       if (panning.current) {
         const dx = e.clientX - lastPan.current.x;
         const dy = e.clientY - lastPan.current.y;
@@ -107,6 +161,13 @@ export function Canvas() {
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      if (pendingTouchPaint === e.pointerId) {
+        // Clean tap: paint a single dot.
+        paintAt(e.clientX, e.clientY);
+        pendingTouchPaint = null;
+      }
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinch = null;
       painting.current = false;
       panning.current = false;
       try {
