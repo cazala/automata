@@ -552,14 +552,6 @@ export function Sidebar() {
         {config.type === "lenia" && (
           <CollapsibleSection title="Lenia">
             <Slider
-              label="Kernel radius"
-              value={config.lenia.radius}
-              onChange={(v) => dispatch(setLenia({ radius: v }))}
-              min={8}
-              max={12}
-              step={1}
-            />
-            <Slider
               label="Growth center (mu)"
               value={config.lenia.mu}
               onChange={(v) => dispatch(setLenia({ mu: v }))}

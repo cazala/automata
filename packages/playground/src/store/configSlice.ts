@@ -21,7 +21,7 @@ export function defaultStepsPerSecond(type: AutomatonType): number {
     case "rd":
       return 1000;
     case "lenia":
-      return 15;
+      return 30;
     case "life":
     case "elementary":
     case "neural":
@@ -151,7 +151,7 @@ export const defaultConfig: ConfigState = {
     regionSize: 4,
   },
   rd: { feed: 0.0545, kill: 0.062, diffU: 1.0, diffV: 0.5, dt: 1.0 },
-  lenia: { radius: 8, mu: 0.15, sigma: 0.023, dt: 0.1 },
+  lenia: { radius: 8, mu: 0.2, sigma: 0.027, dt: 0.1 },
   grid: { wrap: true },
   render: {
     colorOn: "#c8d8ff",
@@ -184,6 +184,12 @@ function finite(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function defaultInitForType(type: AutomatonType): InitConfig {
+  return type === "lenia"
+    ? { mode: "random", density: 1 }
+    : { ...defaultConfig.init };
+}
+
 function constrainNeural(neural: NeuralConfig): void {
   neural.mode = "direct";
   neural.channels = 6;
@@ -212,8 +218,8 @@ function constrainRD(rd: RDConfig): void {
 
 function constrainLenia(lenia: LeniaConfig): void {
   lenia.radius = Math.round(clamp(finite(lenia.radius, 8), 8, 12));
-  lenia.mu = clamp(finite(lenia.mu, 0.15), 0.1, 0.3);
-  lenia.sigma = clamp(finite(lenia.sigma, 0.023), 0.02, 0.06);
+  lenia.mu = clamp(finite(lenia.mu, 0.2), 0.1, 0.3);
+  lenia.sigma = clamp(finite(lenia.sigma, 0.027), 0.02, 0.06);
   lenia.dt = 0.1;
 }
 
@@ -237,7 +243,7 @@ export function sanitizeConfig(
     lenia: { ...defaultConfig.lenia, ...input.lenia },
     grid: { ...defaultConfig.grid, ...input.grid },
     render: { ...defaultConfig.render, ...input.render },
-    init: { ...defaultConfig.init, ...input.init },
+    init: { ...defaultInitForType(type), ...input.init },
     stepsPerSecond,
   };
 
@@ -255,6 +261,10 @@ const configSlice = createSlice({
     setType(state, action: PayloadAction<AutomatonType>) {
       state.type = action.payload;
       state.stepsPerSecond = defaultStepsPerSecond(action.payload);
+      if (action.payload === "lenia") {
+        state.init.mode = "random";
+        state.init.density = 1;
+      }
     },
     setLife(state, action: PayloadAction<Partial<LifeConfig>>) {
       Object.assign(state.life, action.payload);
