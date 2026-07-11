@@ -15,7 +15,7 @@
  */
 
 import { View, type ViewSnapshot } from "./view";
-import { Automaton } from "./automaton";
+import { Automaton, type RenderHints, type SeedOptions } from "./automaton";
 import {
   buildCompute,
   packParams,
@@ -55,6 +55,12 @@ export interface EngineOptions {
   grid?: { width?: number; height?: number; wrap?: boolean; maxCells?: number };
   stepsPerSecond?: number;
   render?: Partial<RenderConfig>;
+  /**
+   * Called with shader-compilation and GPU validation errors (default:
+   * console.error). Without this, a broken WGSL step would fail silently and
+   * present as a frozen simulation.
+   */
+  onError?: (error: Error) => void;
 }
 
 const DEFAULT_RENDER: RenderConfig = {
@@ -108,6 +114,8 @@ export class Engine {
   private built: BuiltCompute | null = null;
   private advancesRowFlag = false;
   private stepParity = 1;
+  private renderHints: RenderHints = {};
+  private onError: (error: Error) => void;
 
   // loop
   private playing = false;
@@ -128,6 +136,7 @@ export class Engine {
     this.maxCells = Math.max(16, Math.floor(options.grid?.maxCells ?? 1024));
     this.stepsPerSecond = options.stepsPerSecond ?? 20;
     this.renderConfig = { ...DEFAULT_RENDER, ...options.render };
+    this.onError = options.onError ?? ((error) => console.error(error));
     this.view = new View(this.canvas.clientWidth || 800, this.canvas.clientHeight || 600);
   }
 
@@ -209,6 +218,7 @@ export class Engine {
     this.built = built;
     this.advancesRowFlag = desc.advancesRow === true;
     this.stepParity = Math.max(1, Math.floor(desc.stepParity ?? 1));
+    this.renderHints = desc.render ?? {};
 
     const prevChannels = this.channels;
     this.channels = desc.channels;
@@ -258,11 +268,35 @@ export class Engine {
       this.storageBuffers.set(s.name, buf);
     }
 
-    // Compute pipeline.
+    // Compute pipeline. Surface compile errors loudly: without this, a broken
+    // WGSL step fails silently and presents as a frozen simulation.
     const module = this.device.createShaderModule({ code: built.code });
+    void module.getCompilationInfo().then((info) => {
+      const errors = info.messages.filter((m) => m.type === "error");
+      if (errors.length > 0) {
+        const detail = errors
+          .map((m) => `  line ${m.lineNum}:${m.linePos} ${m.message}`)
+          .join("\n");
+        this.onError(
+          new Error(
+            `Shader compilation failed for automaton "${this.automaton.name}":\n${detail}`
+          )
+        );
+      }
+    });
+    this.device.pushErrorScope("validation");
     this.computePipeline = this.device.createComputePipeline({
       layout: "auto",
       compute: { module, entryPoint: "step" },
+    });
+    void this.device.popErrorScope().then((err) => {
+      if (err) {
+        this.onError(
+          new Error(
+            `Pipeline validation failed for automaton "${this.automaton.name}": ${err.message}`
+          )
+        );
+      }
     });
 
     this.rebuildBindGroups();
@@ -487,6 +521,16 @@ export class Engine {
   }
 
   /**
+   * Re-seed the grid with the automaton's own initial state — the pattern the
+   * rule is known to develop well from (see Automaton.seed).
+   */
+  reset(options?: SeedOptions): void {
+    if (!this.cellBuffers) return;
+    this.setCells(this.automaton.seed(this.gridW, this.gridH, options));
+    this.rowCounter = 0;
+  }
+
+  /**
    * Randomize the grid; `density` is the per-cell probability of being set.
    *
    *  "first"       only channel 0 is set (binary automata)
@@ -703,7 +747,10 @@ export class Engine {
     const snap = this.view.getSnapshot();
     const rc = this.renderConfig;
     const colorMode =
-      rc.colorMode ?? (this.channels > 1 ? 1 : 0);
+      rc.colorMode ?? this.renderHints.colorMode ?? (this.channels > 1 ? 1 : 0);
+    // invertPalette: rules whose idle state is a high value render dark-idle.
+    const colorOn = this.renderHints.invertPalette ? rc.colorOff : rc.colorOn;
+    const colorOff = this.renderHints.invertPalette ? rc.colorOn : rc.colorOff;
     const toArr = (c: RGBA): [number, number, number, number] => [c.r, c.g, c.b, c.a];
 
     this.device.queue.writeBuffer(
@@ -722,8 +769,8 @@ export class Engine {
         showGrid: rc.showGrid ? 1 : 0,
         gridThreshold: rc.gridThreshold,
         dpr: this.dpr(),
-        colorOff: toArr(rc.colorOff),
-        colorOn: toArr(rc.colorOn),
+        colorOff: toArr(colorOff),
+        colorOn: toArr(colorOn),
         colorBg: toArr(rc.colorBg),
       })
     );
@@ -808,6 +855,28 @@ export class Engine {
     return this.view.getSize();
   }
 
+  /**
+   * Keep the canvas and grid coverage in sync with an element's size (by
+   * default the canvas's parent). Returns a dispose function. This is the
+   * one-liner alternative to hand-wiring a ResizeObserver around setSize()
+   * and ensureGridCovers().
+   */
+  autoResize(target?: HTMLElement): () => void {
+    const el = target ?? this.canvas.parentElement ?? this.canvas;
+    const apply = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) {
+        this.setSize(w, h);
+        this.ensureGridCovers();
+      }
+    };
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    apply();
+    return () => ro.disconnect();
+  }
+
   setCamera(x: number, y: number): void {
     this.view.setCamera(x, y);
   }
@@ -856,13 +925,22 @@ export class Engine {
     return { ...this.renderConfig };
   }
 
-  // ---- persistence ----------------------------------------------------------
+}
 
-  export(): Record<string, number> {
-    return this.automaton.getValues();
-  }
-
-  import(values: Record<string, number>): void {
-    this.automaton.setValues(values);
-  }
+/**
+ * Compute grid dimensions that cover a canvas at a fixed cell size in CSS px,
+ * clamped to sane GPU limits. Pair with Engine's coverGrid()/autoResize().
+ */
+export function gridForCanvas(
+  cssWidth: number,
+  cssHeight: number,
+  options: { cellSize?: number; minCells?: number; maxCells?: number } = {}
+): { width: number; height: number } {
+  const { cellSize = 1.5, minCells = 16, maxCells = 2048 } = options;
+  const clampCells = (n: number) =>
+    Math.max(minCells, Math.min(maxCells, Math.round(n)));
+  return {
+    width: clampCells(Math.ceil(cssWidth / cellSize)),
+    height: clampCells(Math.ceil(cssHeight / cellSize)),
+  };
 }

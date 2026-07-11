@@ -11,8 +11,6 @@ import {
   Elementary,
   Neural,
   Pokemon,
-  POKEMON_TYPES,
-  POKEMON_TYPE_COUNT,
   ReactionDiffusion,
   Lenia,
   type Activation,
@@ -107,7 +105,11 @@ function buildAutomaton(config: ConfigState): Automaton {
         },
       });
     case "pokemon":
-      return new Pokemon({ threshold: config.pokemon.threshold });
+      return new Pokemon({
+        threshold: config.pokemon.threshold,
+        regionSize: config.pokemon.regionSize,
+        enabledTypes: config.pokemon.enabled,
+      });
     case "rd":
       return new ReactionDiffusion({
         feed: config.rd.feed,
@@ -127,37 +129,14 @@ function buildAutomaton(config: ConfigState): Automaton {
 }
 
 function renderConfigFrom(config: ConfigState): Partial<RenderConfig> {
-  if (config.type === "pokemon") {
-    // Cells carry their own palette rgb; a black->white ramp makes the
-    // channel-wise mix an identity so the type colors display verbatim.
-    return {
-      colorOn: { r: 1, g: 1, b: 1, a: 1 },
-      colorOff: { r: 0, g: 0, b: 0, a: 1 },
-      colorBg: hexToRgba(config.render.colorBg),
-      showGrid: config.render.showGrid,
-      gridThreshold: 6,
-      colorMode: 1,
-    };
-  }
-  if (config.type === "rd") {
-    // Channel 0 is chemical U, which idles at 1 and *dips* where patterns
-    // form — swap on/off so the empty field renders dark and patterns light.
-    return {
-      colorOn: hexToRgba(config.render.colorOff),
-      colorOff: hexToRgba(config.render.colorOn),
-      colorBg: hexToRgba(config.render.colorBg),
-      showGrid: config.render.showGrid,
-      gridThreshold: 6,
-      colorMode: 0,
-    };
-  }
+  // Color mode and palette inversion come from each automaton's render hints
+  // (AutomatonDescriptor.render); the playground only supplies the palette.
   return {
     colorOn: hexToRgba(config.render.colorOn),
     colorOff: hexToRgba(config.render.colorOff),
     colorBg: hexToRgba(config.render.colorBg),
     showGrid: config.render.showGrid,
     gridThreshold: 6,
-    colorMode: config.type === "neural" ? 1 : 0,
   };
 }
 
@@ -181,177 +160,9 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     const engine = engineRef.current;
     if (!engine) return;
     const cfg = configRef.current;
-    const { width, height } = engine.getGridSize();
-    const cx = Math.floor(width / 2);
-    const cy = Math.floor(height / 2);
-
-    engine.clear();
-
-    if (cfg.type === "elementary") {
-      engine.setCell(cx, 0, [1]);
-      return;
-    }
-
-    if (cfg.type === "rd") {
-      // Idle state is u=1 (fed), v=0; patterns grow from ragged patches of V.
-      // The faint V noise and irregular seed shapes matter: a perfectly
-      // symmetric, noiseless field freezes into round spots that never divide
-      // (verified — mitosis stays at constant coverage without them).
-      // engine.clear()'s all-zero state is inert for Gray-Scott, so build the
-      // field explicitly even for "clear".
-      const data = new Float32Array(width * height * 2);
-      for (let i = 0; i < width * height; i++) {
-        data[i * 2] = 1;
-        data[i * 2 + 1] = Math.random() * 0.02;
-      }
-      const seed = (sx: number, sy: number, size: number) => {
-        for (let dy = 0; dy < size; dy++) {
-          for (let dx = 0; dx < size; dx++) {
-            if (Math.random() < 0.25) continue; // ragged edge
-            const px = (sx + dx + width) % width;
-            const py = (sy + dy + height) % height;
-            data[(py * width + px) * 2 + 1] = 1;
-          }
-        }
-      };
-      if (cfg.init.mode === "center") {
-        seed(cx - 4, cy - 4, 8);
-      } else if (cfg.init.mode !== "clear") {
-        const count = Math.max(1, Math.round(cfg.init.density * 40));
-        for (let i = 0; i < count; i++) {
-          seed(
-            Math.floor(Math.random() * width),
-            Math.floor(Math.random() * height),
-            6
-          );
-        }
-      }
-      engine.setCells(data);
-      return;
-    }
-
-    if (cfg.type === "lenia") {
-      // Blobs of continuous noise; uniform noise everywhere mostly cancels
-      // itself out, while blob-scale patches match the kernel radius.
-      const data = new Float32Array(width * height);
-      const R = Math.max(4, cfg.lenia.radius);
-      const count = Math.max(1, Math.round(cfg.init.density * 150));
-      for (let k = 0; k < count; k++) {
-        const sx = Math.floor(Math.random() * width);
-        const sy = Math.floor(Math.random() * height);
-        const size = R + Math.floor(Math.random() * R);
-        for (let dy = 0; dy < size; dy++) {
-          for (let dx = 0; dx < size; dx++) {
-            const px = (sx + dx) % width;
-            const py = (sy + dy) % height;
-            data[py * width + px] = Math.random();
-          }
-        }
-      }
-      if (cfg.init.mode === "center") {
-        data.fill(0);
-        for (let dy = -R; dy < R; dy++) {
-          for (let dx = -R; dx < R; dx++) {
-            const px = (cx + dx + width) % width;
-            const py = (cy + dy + height) % height;
-            data[py * width + px] = Math.random();
-          }
-        }
-      }
-      if (cfg.init.mode === "clear") data.fill(0);
-      engine.setCells(data);
-      return;
-    }
-
-    if (cfg.type === "pokemon") {
-      // Start as a voronoi mosaic of single-type regions (jittered-grid Worley
-      // sites) instead of per-cell noise: uncorrelated noise deadlocks at
-      // threshold 3 because no cell ever sees 3 aligned attackers, while
-      // coherent domains give straight borders where the battle rule stays
-      // active. Disabled types can never re-emerge, since cells only ever
-      // convert to a neighbour's type.
-      const pool: number[] = [];
-      for (let t = 0; t < POKEMON_TYPE_COUNT; t++) {
-        if (cfg.pokemon.enabled[t] ?? true) pool.push(t);
-      }
-      if (pool.length === 0) pool.push(0);
-
-      const S = Math.max(2, Math.floor(cfg.pokemon.regionSize));
-      const bw = Math.max(1, Math.ceil(width / S));
-      const bh = Math.max(1, Math.ceil(height / S));
-      const siteX = new Float32Array(bw * bh);
-      const siteY = new Float32Array(bw * bh);
-      const siteT = new Uint8Array(bw * bh);
-      for (let i = 0; i < bw * bh; i++) {
-        siteX[i] = ((i % bw) + Math.random()) * S;
-        siteY[i] = (Math.floor(i / bw) + Math.random()) * S;
-        siteT[i] = pool[Math.floor(Math.random() * pool.length)];
-      }
-
-      const data = new Float32Array(width * height * 4);
-      for (let y = 0; y < height; y++) {
-        const by = Math.floor(y / S);
-        for (let x = 0; x < width; x++) {
-          const bx = Math.floor(x / S);
-          let best = Infinity;
-          let t = pool[0];
-          for (let oy = -1; oy <= 1; oy++) {
-            for (let ox = -1; ox <= 1; ox++) {
-              const nbx = (bx + ox + bw) % bw;
-              const nby = (by + oy + bh) % bh;
-              const i = nby * bw + nbx;
-              // Toroidal deltas so regions tile seamlessly across the wrap.
-              let dx = x - siteX[i];
-              let dy = y - siteY[i];
-              dx -= Math.round(dx / width) * width;
-              dy -= Math.round(dy / height) * height;
-              const d = dx * dx + dy * dy;
-              if (d < best) {
-                best = d;
-                t = siteT[i];
-              }
-            }
-          }
-          const [r, g, b] = POKEMON_TYPES[t].color;
-          const base = (y * width + x) * 4;
-          data[base] = r / 255;
-          data[base + 1] = g / 255;
-          data[base + 2] = b / 255;
-          data[base + 3] = t;
-        }
-      }
-      engine.setCells(data);
-      return;
-    }
-
-    if (cfg.init.mode === "clear") return;
-
-    if (cfg.type === "neural") {
-      if (cfg.init.mode === "center") {
-        // A single live seed (all channels) grows outward.
-        engine.seedPoint(cx, cy);
-      } else {
-        // "random" seeds whole cells, so every channel agrees and direct mode
-        // renders as one field; "noise" gives each channel its own field, which
-        // the RGB mapping shows as three overlaid fields.
-        engine.randomize(
-          cfg.init.density,
-          cfg.init.mode === "noise" ? "independent" : "all"
-        );
-      }
-      return;
-    }
-
-    // life-like rules (single channel, "noise" and "random" coincide)
-    if (cfg.init.mode === "random" || cfg.init.mode === "noise") {
-      engine.randomize(cfg.init.density);
-    } else if (cfg.init.mode === "center") {
-      engine.setCell(cx, cy, [1]);
-      engine.setCell(cx + 1, cy, [1]);
-      engine.setCell(cx - 1, cy, [1]);
-      engine.setCell(cx, cy + 1, [1]);
-      engine.setCell(cx - 1, cy - 1, [1]);
-    }
+    // Each automaton owns its initial-state recipe (Automaton.seed); the
+    // playground just forwards the user's mode/density choice.
+    engine.reset({ mode: cfg.init.mode, density: cfg.init.density });
   }, []);
 
   // ---- lifecycle ------------------------------------------------------------
@@ -608,11 +419,16 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     engineRef.current?.setWrap(config.grid.wrap);
   }, [config.grid.wrap]);
 
-  // Pokemon realtime params.
+  // Pokemon params. Region size and type participation only shape the next
+  // seed() (the toggles/slider dispatch a re-init separately).
   useEffect(() => {
     const a = automatonRef.current;
-    if (a instanceof Pokemon) a.setThreshold(config.pokemon.threshold);
-  }, [config.pokemon.threshold]);
+    if (a instanceof Pokemon) {
+      a.setThreshold(config.pokemon.threshold);
+      a.setRegionSize(config.pokemon.regionSize);
+      a.setEnabledTypes(config.pokemon.enabled);
+    }
+  }, [config.pokemon.threshold, config.pokemon.regionSize, config.pokemon.enabled]);
 
   // Reaction-diffusion realtime params.
   useEffect(() => {

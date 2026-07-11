@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { RotateCcw } from "lucide-react";
-import { countsToMask, maskToCounts, POKEMON_TYPES, WORMS_KERNEL } from "@cazala/automata";
+import { countsToMask, Elementary, maskToCounts, POKEMON_TYPES, WORMS_KERNEL } from "@cazala/automata";
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
 import {
@@ -23,7 +23,7 @@ import { Button } from "./ui/Button";
 import { Field } from "./ui/Field";
 import "./Sidebar.css";
 
-const ELEMENTARY_PRESETS = [30, 54, 60, 73, 90, 99, 101, 110, 150, 169, 250, 254];
+const ELEMENTARY_PRESETS = Elementary.PRESETS;
 
 interface ChoiceOption {
   value: string;

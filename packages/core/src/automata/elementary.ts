@@ -8,7 +8,12 @@
  * fractal patterns fill downward.
  */
 
-import { Automaton, type AutomatonDescriptor } from "../automaton";
+import {
+  Automaton,
+  type AutomatonDescriptor,
+  type ParamSpec,
+  type SeedOptions,
+} from "../automaton";
 
 export interface ElementaryOptions {
   rule?: number;
@@ -17,16 +22,25 @@ export interface ElementaryOptions {
 export class Elementary extends Automaton {
   readonly name = "elementary";
 
+  static readonly PARAMS: ParamSpec[] = [
+    { name: "rule", type: "u32", default: 30, min: 0, max: 255 },
+  ];
+
+  /** Rules with visually interesting histories. */
+  static readonly PRESETS: number[] = [30, 54, 60, 73, 90, 99, 101, 110, 150, 169, 250, 254];
+
+  static readonly recommendedStepsPerSecond = 120;
+
   constructor(options: ElementaryOptions = {}) {
-    super();
-    this.values.rule = (options.rule ?? 30) & 255;
+    super(Elementary.PARAMS);
+    this.configure(options);
   }
 
   build(): AutomatonDescriptor {
     return {
       channels: 1,
       advancesRow: true,
-      params: [{ name: "rule", type: "u32", default: 30 }],
+      params: Elementary.PARAMS,
       step: /* wgsl */ `
   if (y == i32(sim.currentRow)) {
     let l = sampleAt(x - 1, y - 1, 0);
@@ -44,8 +58,15 @@ export class Elementary extends Automaton {
     };
   }
 
+  /** A single live cell at the top-center, whatever the mode. */
+  seed(width: number, height: number, _options: SeedOptions = {}): Float32Array {
+    const data = new Float32Array(width * height);
+    data[Math.floor(width / 2)] = 1;
+    return data;
+  }
+
   setRule(rule: number): void {
-    this.set("rule", rule & 255);
+    this.set("rule", rule);
   }
 
   getRule(): number {

@@ -3,25 +3,20 @@
  *
  * Two substrates, selected by `mode`:
  *
- * "network" (default): each cell holds C channels. Every step
- *  1. Perception: each channel is convolved with 4 filters (identity, Sobel-x,
- *     Sobel-y, and a configurable symmetric 3x3 kernel) producing a perception
- *     vector of length C*4.
- *  2. Update network: a 2-layer MLP (perception -> hidden -> delta) with weights held
- *     in read-only storage buffers, random-initialized from a reseedable seed. The
- *     hidden activation is selectable at runtime.
- *  3. Residual update under a stochastic per-cell mask; channels are clamped to
- *     [-1, 1] to stay bounded with untrained weights. Optional alive-masking uses
- *     channel 3 as an alpha (classic Growing-NCA style).
- *
- * "direct": no network. Each channel is independently convolved with the symmetric
- * kernel and passed straight through the activation:
+ * "direct" (default): each channel is independently convolved with a symmetric
+ * 3x3 kernel and passed straight through the activation:
  *
  *     v = activate(conv3x3(v, kernel))
  *
- * With the inverted-gaussian activation and a negative-center kernel this is the
- * classic "neural worms" rule. `updateRate`, `stepSize` and `aliveMask` do not apply
- * in this mode — the recurrence is deterministic and has no residual term.
+ * With the inverted-gaussian activation and the default kernel this is the
+ * classic "neural worms" rule. `updateRate`, `stepSize` and `aliveMask` do not
+ * apply in this mode — the recurrence is deterministic and has no residual term.
+ *
+ * "network": each cell holds C channels perceived through 4 filters (identity,
+ * Sobel-x, Sobel-y, the symmetric kernel), fed to a 2-layer MLP (perception ->
+ * hidden -> delta) with random weights from a reseedable seed, applied as a
+ * residual update under a stochastic per-cell mask. Optional alive-masking uses
+ * channel 3 as an alpha (classic Growing-NCA style).
  *
  * Mode, channel count C and hidden size H are baked into the generated WGSL, so
  * changing them (or reseeding) regenerates the weights and triggers a rebuild.
@@ -29,7 +24,13 @@
  * realtime uniform.
  */
 
-import { Automaton, type AutomatonDescriptor } from "../automaton";
+import {
+  Automaton,
+  type AutomatonDescriptor,
+  type ParamSpec,
+  type SeedMode,
+  type SeedOptions,
+} from "../automaton";
 
 export type Activation = 0 | 1 | 2 | 3; // relu | tanh | sigmoid | inverted gaussian
 
@@ -62,6 +63,15 @@ export interface NeuralOptions {
   kernel?: Partial<Kernel>;
 }
 
+export interface NeuralPreset {
+  label: string;
+  mode: NeuralMode;
+  /** Realtime param values to apply. */
+  values: Record<string, number>;
+  /** The initial state this preset develops best from. */
+  seed: SeedOptions;
+}
+
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -76,10 +86,57 @@ function mulberry32(seed: number): () => number {
 export class Neural extends Automaton {
   readonly name = "neural";
 
+  static readonly PARAMS: ParamSpec[] = [
+    { name: "activation", type: "u32", default: 3, min: 0, max: 3 },
+    { name: "updateRate", type: "f32", default: 0.5, min: 0, max: 1 },
+    { name: "stepSize", type: "f32", default: 0.1, min: 0.01, max: 0.5 },
+    { name: "aliveMask", type: "u32", default: 0, min: 0, max: 1 },
+    { name: "gaussWidth", type: "f32", default: WORMS_GAUSS_WIDTH, min: 0.05, max: 3 },
+    { name: "kCenter", type: "f32", default: WORMS_KERNEL.center, min: -2, max: 2 },
+    { name: "kEdge", type: "f32", default: WORMS_KERNEL.edge, min: -2, max: 2 },
+    { name: "kCorner", type: "f32", default: WORMS_KERNEL.corner, min: -2, max: 2 },
+  ];
+
+  /** Verified conv->activation pattern rules, plus the random-MLP substrate. */
+  static readonly PRESETS: Record<string, NeuralPreset> = {
+    worms: {
+      label: "Worms",
+      mode: "direct",
+      values: {
+        activation: 3,
+        gaussWidth: 0.6,
+        kCenter: WORMS_KERNEL.center,
+        kEdge: WORMS_KERNEL.edge,
+        kCorner: WORMS_KERNEL.corner,
+      },
+      seed: { mode: "random", density: 0.2 },
+    },
+    mitosis: {
+      label: "Mitosis",
+      mode: "direct",
+      values: { activation: 3, gaussWidth: 1.3, kCenter: 0.4, kEdge: 0.88, kCorner: -0.94 },
+      seed: { mode: "noise", density: 0.5 },
+    },
+    mosaic: {
+      label: "Mosaic",
+      mode: "direct",
+      values: { activation: 3, gaussWidth: 0.6, kCenter: 0.66, kEdge: 0.9, kCorner: -0.68 },
+      seed: { mode: "noise", density: 0.5 },
+    },
+    network: {
+      label: "Random network",
+      mode: "network",
+      values: { activation: 1, updateRate: 0.5, stepSize: 0.1 },
+      seed: { mode: "random", density: 0.2 },
+    },
+  };
+
+  static readonly recommendedStepsPerSecond = 120;
+
   private mode: NeuralMode;
   private C: number;
   private H: number;
-  private seed: number;
+  private rngSeed: number;
 
   private w1!: Float32Array; // [H * (C*FILTERS)]
   private b1!: Float32Array; // [H]
@@ -87,25 +144,30 @@ export class Neural extends Automaton {
   private b2!: Float32Array; // [C]
 
   constructor(options: NeuralOptions = {}) {
-    super();
-    this.mode = options.mode ?? "network";
-    this.C = Math.max(1, Math.min(16, Math.floor(options.channels ?? 8)));
+    super(Neural.PARAMS);
+    this.mode = options.mode ?? "direct";
+    this.C = Math.max(1, Math.min(16, Math.floor(options.channels ?? 6)));
     this.H = Math.max(1, Math.min(64, Math.floor(options.hidden ?? 32)));
-    this.seed = options.seed ?? (Math.random() * 1e9) | 0;
-    this.values.activation = options.activation ?? 1;
-    this.values.updateRate = options.updateRate ?? 0.5;
-    this.values.stepSize = options.stepSize ?? 0.1;
-    this.values.aliveMask = options.aliveMask ? 1 : 0;
-    this.values.gaussWidth = options.gaussWidth ?? WORMS_GAUSS_WIDTH;
-    this.values.kCenter = options.kernel?.center ?? WORMS_KERNEL.center;
-    this.values.kEdge = options.kernel?.edge ?? WORMS_KERNEL.edge;
-    this.values.kCorner = options.kernel?.corner ?? WORMS_KERNEL.corner;
+    this.rngSeed = options.seed ?? (Math.random() * 1e9) | 0;
+    this.configure(options);
+    if (options.aliveMask !== undefined) this.set("aliveMask", options.aliveMask ? 1 : 0);
+    if (options.kernel?.center !== undefined) this.set("kCenter", options.kernel.center);
+    if (options.kernel?.edge !== undefined) this.set("kEdge", options.kernel.edge);
+    if (options.kernel?.corner !== undefined) this.set("kCorner", options.kernel.corner);
     this.generateWeights();
+  }
+
+  /** Apply a named preset (mode + realtime values). Returns its seed options. */
+  applyPreset(name: keyof typeof Neural.PRESETS): SeedOptions {
+    const preset = Neural.PRESETS[name];
+    this.setMode(preset.mode);
+    this.setValues(preset.values);
+    return preset.seed;
   }
 
   private generateWeights(): void {
     const P = this.C * FILTERS;
-    const rnd = mulberry32(this.seed);
+    const rnd = mulberry32(this.rngSeed);
     const scale1 = Math.sqrt(6 / (P + this.H));
     const scale2 = Math.sqrt(6 / (this.H + this.C));
     this.w1 = new Float32Array(this.H * P);
@@ -136,17 +198,6 @@ export class Neural extends Automaton {
              + params.kEdge   * (s10 + s01 + s21 + s12)
              + params.kCenter * s11;`;
 
-  private static readonly PARAMS = [
-    { name: "activation", type: "u32" as const, default: 1 },
-    { name: "updateRate", type: "f32" as const, default: 0.5 },
-    { name: "stepSize", type: "f32" as const, default: 0.1 },
-    { name: "aliveMask", type: "u32" as const, default: 0 },
-    { name: "gaussWidth", type: "f32" as const, default: WORMS_GAUSS_WIDTH },
-    { name: "kCenter", type: "f32" as const, default: WORMS_KERNEL.center },
-    { name: "kEdge", type: "f32" as const, default: WORMS_KERNEL.edge },
-    { name: "kCorner", type: "f32" as const, default: WORMS_KERNEL.corner },
-  ];
-
   private static readonly GLOBALS = /* wgsl */ `
 fn activate(v: f32) -> f32 {
   if (params.activation == 0u) { return max(v, 0.0); }
@@ -167,6 +218,7 @@ fn activate(v: f32) -> f32 {
       // The conv->activation recurrence oscillates its fine texture between
       // two phases on alternating steps; rendering mixed parities flickers.
       stepParity: 2,
+      render: { colorMode: 1 },
       params: Neural.PARAMS,
       globals: Neural.GLOBALS,
       step: /* wgsl */ `
@@ -200,6 +252,7 @@ fn activate(v: f32) -> f32 {
 
     return {
       channels: C,
+      render: { colorMode: 1 },
       params: Neural.PARAMS,
       storages: [
         { name: "weights1", data: this.w1 },
@@ -244,6 +297,34 @@ fn activate(v: f32) -> f32 {
     };
   }
 
+  /**
+   * "random" seeds whole cells (all channels agree, so direct mode renders as
+   * one coherent field); "noise" gives each channel its own field, which the
+   * rgb mapping displays as overlaid colored patterns; "center" plants a
+   * single all-channel live cell.
+   */
+  seed(width: number, height: number, options: SeedOptions = {}): Float32Array {
+    const { mode = "random" as SeedMode, density = 0.2 } = options;
+    const data = new Float32Array(width * height * this.C);
+    if (mode === "clear") return data;
+    if (mode === "center") {
+      const base = (Math.floor(height / 2) * width + Math.floor(width / 2)) * this.C;
+      for (let c = 0; c < this.C; c++) data[base + c] = 1;
+      return data;
+    }
+    for (let i = 0; i < width * height; i++) {
+      const base = i * this.C;
+      if (mode === "noise") {
+        for (let c = 0; c < this.C; c++) {
+          data[base + c] = Math.random() < density ? 1 : 0;
+        }
+      } else if (Math.random() < density) {
+        for (let c = 0; c < this.C; c++) data[base + c] = 1;
+      }
+    }
+    return data;
+  }
+
   // ---- structural (rebuild) -------------------------------------------------
 
   setMode(mode: NeuralMode): void {
@@ -277,13 +358,13 @@ fn activate(v: f32) -> f32 {
   }
 
   reseed(seed?: number): void {
-    this.seed = seed ?? ((Math.random() * 1e9) | 0);
+    this.rngSeed = seed ?? ((Math.random() * 1e9) | 0);
     this.generateWeights();
     this.requestRebuild();
   }
 
   getSeed(): number {
-    return this.seed;
+    return this.rngSeed;
   }
 
   // ---- realtime params ------------------------------------------------------

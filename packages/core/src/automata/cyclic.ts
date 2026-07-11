@@ -8,13 +8,18 @@
  * demo of self-organization from randomness.
  *
  * Cell layout is 4 channels [r, g, b, state]; the shader recolors each cell
- * from a hue wheel (state / states) every step so the standard multi-channel
- * render path displays it directly. Both `states` and `threshold` are
- * realtime uniforms — but shrinking `states` needs a re-seed, since existing
- * cells may hold indices outside the new cycle.
+ * from a hue wheel (state / states) every step and the raw-rgb render mode
+ * displays it directly. Both `states` and `threshold` are realtime uniforms —
+ * but shrinking `states` needs a re-seed, since existing cells may hold
+ * indices outside the new cycle.
  */
 
-import { Automaton, type AutomatonDescriptor } from "../automaton";
+import {
+  Automaton,
+  type AutomatonDescriptor,
+  type ParamSpec,
+  type SeedOptions,
+} from "../automaton";
 
 export interface CyclicOptions {
   /** Number of states in the cycle (3-20, default 14). */
@@ -35,19 +40,23 @@ export function cyclicColor(state: number, states: number): [number, number, num
 export class Cyclic extends Automaton {
   readonly name = "cyclic";
 
+  static readonly PARAMS: ParamSpec[] = [
+    { name: "states", type: "u32", default: 14, min: 3, max: 20 },
+    { name: "threshold", type: "u32", default: 1, min: 1, max: 4 },
+  ];
+
+  static readonly recommendedStepsPerSecond = 120;
+
   constructor(options: CyclicOptions = {}) {
-    super();
-    this.values.states = Math.max(3, Math.min(20, Math.floor(options.states ?? 14)));
-    this.values.threshold = Math.max(1, Math.min(4, Math.floor(options.threshold ?? 1)));
+    super(Cyclic.PARAMS);
+    this.configure(options);
   }
 
   build(): AutomatonDescriptor {
     return {
       channels: 4,
-      params: [
-        { name: "states", type: "u32", default: 14 },
-        { name: "threshold", type: "u32", default: 1 },
-      ],
+      render: { colorMode: 2 },
+      params: Cyclic.PARAMS,
       globals: /* wgsl */ `
 fn cyclicHue(h: f32) -> vec3<f32> {
   let r = clamp(abs(h * 6.0 - 3.0) - 1.0, 0.0, 1.0);
@@ -80,8 +89,24 @@ fn cyclicHue(h: f32) -> vec3<f32> {
     };
   }
 
+  /** Uniform random states; spirals wind up from the noise. */
+  seed(width: number, height: number, _options: SeedOptions = {}): Float32Array {
+    const n = Math.max(3, this.get("states"));
+    const data = new Float32Array(width * height * 4);
+    for (let i = 0; i < width * height; i++) {
+      const st = Math.floor(Math.random() * n);
+      const [r, g, b] = cyclicColor(st, n);
+      const base = i * 4;
+      data[base] = r;
+      data[base + 1] = g;
+      data[base + 2] = b;
+      data[base + 3] = st;
+    }
+    return data;
+  }
+
   setStates(n: number): void {
-    this.set("states", Math.max(3, Math.min(20, Math.floor(n))));
+    this.set("states", n);
   }
 
   getStates(): number {
@@ -89,7 +114,7 @@ fn cyclicHue(h: f32) -> vec3<f32> {
   }
 
   setThreshold(n: number): void {
-    this.set("threshold", Math.max(1, Math.min(4, Math.floor(n))));
+    this.set("threshold", n);
   }
 
   getThreshold(): number {

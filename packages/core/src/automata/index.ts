@@ -1,13 +1,13 @@
 export { Life, countsToMask, maskToCounts } from "./life";
-export type { LifeOptions } from "./life";
+export type { LifeOptions, LifePreset } from "./life";
 export { Elementary } from "./elementary";
 export type { ElementaryOptions } from "./elementary";
-export { Neural } from "./neural";
-export type { NeuralOptions, Activation } from "./neural";
+export { Neural, WORMS_KERNEL, WORMS_GAUSS_WIDTH } from "./neural";
+export type { NeuralOptions, NeuralPreset, Activation, NeuralMode, Kernel } from "./neural";
 export { Pokemon, POKEMON_TYPES, POKEMON_TYPE_COUNT } from "./pokemon";
 export type { PokemonOptions, PokemonTypeInfo } from "./pokemon";
 export { ReactionDiffusion } from "./reaction-diffusion";
-export type { ReactionDiffusionOptions } from "./reaction-diffusion";
+export type { ReactionDiffusionOptions, RDPreset } from "./reaction-diffusion";
 export { BriansBrain } from "./brain";
 export type { BriansBrainOptions } from "./brain";
 export { Cyclic, cyclicColor } from "./cyclic";

@@ -11,7 +11,12 @@
  * bright heads with dimmer refractory trails under the standard gradient.
  */
 
-import { Automaton, type AutomatonDescriptor } from "../automaton";
+import {
+  Automaton,
+  type AutomatonDescriptor,
+  type ParamSpec,
+  type SeedOptions,
+} from "../automaton";
 
 export interface BriansBrainOptions {
   /** Firing neighbours required for a ready cell to fire (default 2). */
@@ -21,15 +26,22 @@ export interface BriansBrainOptions {
 export class BriansBrain extends Automaton {
   readonly name = "brain";
 
+  static readonly PARAMS: ParamSpec[] = [
+    { name: "birth", type: "u32", default: 2, min: 1, max: 8 },
+  ];
+
+  static readonly recommendedStepsPerSecond = 120;
+
   constructor(options: BriansBrainOptions = {}) {
-    super();
-    this.values.birth = Math.max(1, Math.min(8, Math.floor(options.birth ?? 2)));
+    super(BriansBrain.PARAMS);
+    this.configure(options);
   }
 
   build(): AutomatonDescriptor {
     return {
       channels: 1,
-      params: [{ name: "birth", type: "u32", default: 2 }],
+      render: { colorMode: 0 },
+      params: BriansBrain.PARAMS,
       step: /* wgsl */ `
   let s = sampleAt(x, y, 0);
   var firing = 0u;
@@ -51,8 +63,13 @@ export class BriansBrain extends Automaton {
     };
   }
 
+  /** Sparse random firing cells (default density 0.2). */
+  seed(width: number, height: number, options: SeedOptions = {}): Float32Array {
+    return super.seed(width, height, { density: 0.2, ...options });
+  }
+
   setBirth(n: number): void {
-    this.set("birth", Math.max(1, Math.min(8, Math.floor(n))));
+    this.set("birth", n);
   }
 
   getBirth(): number {

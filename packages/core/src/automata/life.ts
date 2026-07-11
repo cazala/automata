@@ -8,7 +8,12 @@
  *   HighLife B36/S23 -> birth 0b001001000 (72),  survival 12
  */
 
-import { Automaton, type AutomatonDescriptor } from "../automaton";
+import {
+  Automaton,
+  type AutomatonDescriptor,
+  type ParamSpec,
+  type SeedOptions,
+} from "../automaton";
 
 export interface LifeOptions {
   birth?: number;
@@ -27,22 +32,46 @@ export function maskToCounts(mask: number): number[] {
   return out;
 }
 
+export interface LifePreset {
+  label: string;
+  birth: number[];
+  survival: number[];
+  /** Soup density this rule develops best from. */
+  density: number;
+}
+
 export class Life extends Automaton {
   readonly name = "life";
 
+  static readonly PARAMS: ParamSpec[] = [
+    { name: "birth", type: "u32", default: countsToMask([3]), min: 0, max: 511 },
+    { name: "survival", type: "u32", default: countsToMask([2, 3]), min: 0, max: 511 },
+  ];
+
+  /** Named rules with the soup density each develops best from. */
+  static readonly PRESETS: Record<string, LifePreset> = {
+    conway: { label: "Conway", birth: [3], survival: [2, 3], density: 0.5 },
+    daynight: {
+      label: "Day & Night",
+      birth: [3, 6, 7, 8],
+      survival: [3, 4, 6, 7, 8],
+      density: 0.5,
+    },
+    maze: { label: "Maze", birth: [3], survival: [1, 2, 3, 4, 5], density: 0.02 },
+    coral: { label: "Coral", birth: [3], survival: [4, 5, 6, 7, 8], density: 0.45 },
+  };
+
+  static readonly recommendedStepsPerSecond = 120;
+
   constructor(options: LifeOptions = {}) {
-    super();
-    this.values.birth = options.birth ?? countsToMask([3]);
-    this.values.survival = options.survival ?? countsToMask([2, 3]);
+    super(Life.PARAMS);
+    this.configure(options);
   }
 
   build(): AutomatonDescriptor {
     return {
       channels: 1,
-      params: [
-        { name: "birth", type: "u32", default: countsToMask([3]) },
-        { name: "survival", type: "u32", default: countsToMask([2, 3]) },
-      ],
+      params: Life.PARAMS,
       step: /* wgsl */ `
   let alive = sampleAt(x, y, 0);
   var n = 0.0;
@@ -64,6 +93,25 @@ export class Life extends Automaton {
   }
   setCell(x, y, 0, next);`,
     };
+  }
+
+  /** Random soup at `density` (default 0.5); "center" plants a small cluster. */
+  seed(width: number, height: number, options: SeedOptions = {}): Float32Array {
+    const { mode = "random", density = 0.5 } = options;
+    const data = new Float32Array(width * height);
+    if (mode === "clear") return data;
+    if (mode === "center") {
+      const cx = Math.floor(width / 2);
+      const cy = Math.floor(height / 2);
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [-1, -1]]) {
+        data[(cy + dy) * width + (cx + dx)] = 1;
+      }
+      return data;
+    }
+    for (let i = 0; i < data.length; i++) {
+      if (Math.random() < density) data[i] = 1;
+    }
+    return data;
   }
 
   setBirth(mask: number): void {

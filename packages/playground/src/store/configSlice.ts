@@ -1,8 +1,10 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import {
+  Life,
   POKEMON_TYPE_COUNT,
   WORMS_GAUSS_WIDTH,
   WORMS_KERNEL,
+  type LifePreset,
 } from "@cazala/automata";
 
 /** Activation ids, matching the Neural automaton's `activation` param. */
@@ -122,43 +124,14 @@ export interface ConfigState {
   stepsPerSecond: number;
 }
 
-export interface LifePreset {
-  label: string;
-  birth: number[];
-  survival: number[];
-  density: number;
-}
+export type { LifePreset };
+
+/** Named life rules with per-preset soup densities (from the core library). */
+export const LIFE_PRESETS: Record<string, LifePreset> = Life.PRESETS;
 
 // Conway B3/S23 masks.
 const B3 = 1 << 3;
 const S23 = (1 << 2) | (1 << 3);
-
-export const LIFE_PRESETS: Record<string, LifePreset> = {
-  conway: {
-    label: "Conway",
-    birth: [3],
-    survival: [2, 3],
-    density: 0.5,
-  },
-  daynight: {
-    label: "Day & Night",
-    birth: [3, 6, 7, 8],
-    survival: [3, 4, 6, 7, 8],
-    density: 0.5,
-  },
-  maze: {
-    label: "Maze",
-    birth: [3],
-    survival: [1, 2, 3, 4, 5],
-    density: 0.02,
-  },
-  coral: {
-    label: "Coral",
-    birth: [3],
-    survival: [4, 5, 6, 7, 8],
-    density: 0.45,
-  },
-};
 
 // Boot into the "neural worms" rule: direct conv -> inverted gaussian.
 export const defaultConfig: ConfigState = {

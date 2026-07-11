@@ -7,9 +7,11 @@
  * current grid buffer, and colorizes it. No scene ping-pong textures are needed.
  *
  * colorMode 0: single-channel binary/continuous -> mix(colorOff, colorOn, value)
- * colorMode 1: multi-channel (neural CA) -> channels 0..2 drive a per-channel
+ * colorMode 1: multi-channel -> channels 0..2 drive a per-channel
  *              mix(colorOff, colorOn, value), so the palette tints the field
  *              while distinct channel values still separate into hues
+ * colorMode 2: raw rgb -> channels 0..2 displayed verbatim (cells carry their
+ *              own palette, e.g. pokemon type colors / cyclic hue wheel)
  */
 
 export const RENDER_UNIFORM_SIZE = 96; // see layout below (24 * f32)
@@ -75,7 +77,11 @@ fn fs(@builtin(position) fragPos: vec4<f32>) -> @location(0) vec4<f32> {
     let g = select(0.0, cells[base + 1], ch > 1);
     let b = select(0.0, cells[base + 2], ch > 2);
     let v = clamp(vec3<f32>(r, g, b), vec3<f32>(0.0), vec3<f32>(1.0));
-    col = vec4<f32>(mix(ru.colorOff.rgb, ru.colorOn.rgb, v), 1.0);
+    if (ru.colorMode < 1.5) {
+      col = vec4<f32>(mix(ru.colorOff.rgb, ru.colorOn.rgb, v), 1.0);
+    } else {
+      col = vec4<f32>(v, 1.0);
+    }
   }
 
   if (ru.showGrid > 0.5 && ru.zoom >= ru.gridThreshold) {
