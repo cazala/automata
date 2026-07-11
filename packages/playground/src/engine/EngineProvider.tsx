@@ -36,7 +36,7 @@ interface EngineApi {
   reset: () => void;
   clear: () => void;
   applyInit: () => void;
-  paintCell: (worldX: number, worldY: number, value: number) => void;
+  eraseAt: (worldX: number, worldY: number) => void;
   screenToWorld: (sx: number, sy: number) => { x: number; y: number };
   handleWheel: (deltaY: number, cx: number, cy: number) => void;
   zoomAt: (factor: number, cx: number, cy: number) => void;
@@ -444,17 +444,20 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const paintCell = useCallback((worldX: number, worldY: number, value: number) => {
+  /** Radius (in cells) of the click/drag eraser stamp. */
+  const ERASE_RADIUS = 25;
+
+  const eraseAt = useCallback((worldX: number, worldY: number) => {
     const engine = engineRef.current;
     if (!engine) return;
-    const cx = Math.floor(worldX);
-    const cy = Math.floor(worldY);
-    const channels = engine.getChannels();
-    if (value > 0 && channels > 1) {
-      engine.seedPoint(cx, cy);
-    } else {
-      engine.setCell(cx, cy, new Array(channels).fill(value));
-    }
+    // "Off" is automaton-specific: Gray-Scott idles at u=1, v=0 (all-zero
+    // cells would render bright through its inverted palette and re-ignite);
+    // everything else clears to zero.
+    const values =
+      configRef.current.type === "rd"
+        ? [1, 0]
+        : new Array(engine.getChannels()).fill(0);
+    engine.fillCircle(worldX, worldY, ERASE_RADIUS, values);
   }, []);
 
   /** Zoom by a factor keeping the world point under (cx, cy) fixed. */
@@ -666,7 +669,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     reset,
     clear,
     applyInit,
-    paintCell,
+    eraseAt,
     screenToWorld,
     handleWheel,
     panBy,

@@ -3,22 +3,36 @@ import { useEngine } from "../engine/EngineProvider";
 import { useAppSelector } from "../store";
 import "./Canvas.css";
 
+/**
+ * What a primary click/touch drag does, per automaton:
+ *  - erase: clear a circular brush of cells (neural, reaction, lenia, life)
+ *  - pan:   move the camera (pokemon — cell surgery would just get eaten by
+ *           the battle rule, so the gesture is better spent navigating)
+ *  - none:  inert (elementary — the row-by-row history isn't editable)
+ * Two-finger pinch zoom and wheel zoom work everywhere regardless.
+ */
+type InteractionMode = "erase" | "pan" | "none";
+
+function interactionFor(type: string): InteractionMode {
+  if (type === "pokemon") return "pan";
+  if (type === "elementary") return "none";
+  return "erase";
+}
+
 export function Canvas() {
   const engine = useEngine();
-  const tool = useAppSelector((s) => s.ui.tool);
-  const brushSize = useAppSelector((s) => s.ui.brushSize);
+  const automatonType = useAppSelector((s) => s.config.type);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const toolRef = useRef(tool);
-  toolRef.current = tool;
-  const brushRef = useRef(brushSize);
-  brushRef.current = brushSize;
+  const modeRef = useRef<InteractionMode>(interactionFor(automatonType));
+  modeRef.current = interactionFor(automatonType);
 
   // State kept in refs to avoid re-binding listeners.
-  const painting = useRef(false);
+  const erasing = useRef(false);
   const panning = useRef(false);
-  const paintValue = useRef(1);
   const lastPan = useRef({ x: 0, y: 0 });
+  // Previous eraser stamp in world coords, for stroke interpolation.
+  const lastErase = useRef<{ x: number; y: number } | null>(null);
 
   // Init engine once the canvas is mounted.
   useEffect(() => {
@@ -62,30 +76,37 @@ export function Canvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const paintAt = (clientX: number, clientY: number) => {
+  const eraseAtClient = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
     const world = engine.screenToWorld(clientX - rect.left, clientY - rect.top);
-    const r = Math.max(0, brushRef.current - 1);
-    const cx = Math.floor(world.x);
-    const cy = Math.floor(world.y);
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        engine.paintCell(cx + dx + 0.5, cy + dy + 0.5, paintValue.current);
+    // Stamp along the segment from the previous point so fast drags leave a
+    // continuous trail instead of a dotted line.
+    const prev = lastErase.current;
+    if (prev) {
+      const dist = Math.hypot(world.x - prev.x, world.y - prev.y);
+      const stepLen = 12; // cells; about half the eraser radius
+      const steps = Math.floor(dist / stepLen);
+      for (let i = 1; i <= steps; i++) {
+        const t = i / (steps + 1);
+        engine.eraseAt(prev.x + (world.x - prev.x) * t, prev.y + (world.y - prev.y) * t);
       }
     }
+    engine.eraseAt(world.x, world.y);
+    lastErase.current = world;
   };
 
-  // Pointer interaction. Mouse: paint/pan on drag as before. Touch: one
-  // finger paints (deferred past pointerdown so a starting pinch never leaves
-  // a stray dot), two fingers pinch-zoom around their midpoint and pan with it.
+  // Pointer interaction. Mouse: erase/pan on drag by automaton. Touch: one
+  // finger does the same (erase deferred past pointerdown so a starting pinch
+  // never leaves a stray stamp), two fingers pinch-zoom around their midpoint
+  // and pan with it.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const pointers = new Map<number, { x: number; y: number }>();
-    // Touch finger that hasn't painted yet (tap paints on release).
-    let pendingTouchPaint: number | null = null;
+    // Touch finger that hasn't erased yet (a clean tap stamps on release).
+    let pendingTouchErase: number | null = null;
     let pinch: { dist: number; mid: { x: number; y: number } } | null = null;
 
     const pinchState = () => {
@@ -106,32 +127,39 @@ export function Canvas() {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (pointers.size === 2) {
-        // Second finger: cancel any paint/pan in progress, start pinching.
-        painting.current = false;
+        // Second finger: cancel any erase/pan in progress, start pinching.
+        erasing.current = false;
         panning.current = false;
-        pendingTouchPaint = null;
+        pendingTouchErase = null;
+        lastErase.current = null;
         pinch = pinchState();
         return;
       }
       if (pointers.size > 2) return;
 
-      const isPanButton = e.button === 1 || e.button === 2 || toolRef.current === "pan";
-      if (isPanButton) {
+      const mode = modeRef.current;
+      if (mode === "none") return;
+
+      const isPanButton = e.button === 1 || e.button === 2;
+      if (mode === "pan" || isPanButton) {
         panning.current = true;
         lastPan.current = { x: e.clientX, y: e.clientY };
-      } else if (e.pointerType === "touch") {
-        pendingTouchPaint = e.pointerId;
-        paintValue.current = toolRef.current === "erase" ? 0 : 1;
+        return;
+      }
+
+      // erase mode
+      if (e.pointerType === "touch") {
+        pendingTouchErase = e.pointerId;
       } else {
-        painting.current = true;
-        paintValue.current = toolRef.current === "erase" ? 0 : 1;
-        paintAt(e.clientX, e.clientY);
+        erasing.current = true;
+        lastErase.current = null;
+        eraseAtClient(e.clientX, e.clientY);
       }
     };
 
     const onPointerMove = (e: PointerEvent) => {
       if (!pointers.has(e.pointerId)) {
-        if (painting.current) paintAt(e.clientX, e.clientY);
+        if (erasing.current) eraseAtClient(e.clientX, e.clientY);
         return;
       }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -145,31 +173,34 @@ export function Canvas() {
         return;
       }
 
-      if (pendingTouchPaint === e.pointerId) {
-        // Finger moved without a second finger joining: it's a paint stroke.
-        pendingTouchPaint = null;
-        painting.current = true;
+      if (pendingTouchErase === e.pointerId) {
+        // Finger moved without a second finger joining: it's an erase stroke.
+        pendingTouchErase = null;
+        erasing.current = true;
+        lastErase.current = null;
       }
       if (panning.current) {
         const dx = e.clientX - lastPan.current.x;
         const dy = e.clientY - lastPan.current.y;
         lastPan.current = { x: e.clientX, y: e.clientY };
         engine.panBy(dx, dy);
-      } else if (painting.current) {
-        paintAt(e.clientX, e.clientY);
+      } else if (erasing.current) {
+        eraseAtClient(e.clientX, e.clientY);
       }
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      if (pendingTouchPaint === e.pointerId) {
-        // Clean tap: paint a single dot.
-        paintAt(e.clientX, e.clientY);
-        pendingTouchPaint = null;
+      if (pendingTouchErase === e.pointerId) {
+        // Clean tap: a single eraser stamp.
+        lastErase.current = null;
+        eraseAtClient(e.clientX, e.clientY);
+        pendingTouchErase = null;
       }
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
-      painting.current = false;
+      erasing.current = false;
       panning.current = false;
+      lastErase.current = null;
       try {
         canvas.releasePointerCapture(e.pointerId);
       } catch {
@@ -194,8 +225,6 @@ export function Canvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const cursorClass =
-    tool === "pan" ? "pan-tool" : tool === "erase" ? "erase-tool" : "paint-tool";
-
-  return <canvas ref={canvasRef} id="canvas" className={cursorClass} />;
+  const mode = interactionFor(automatonType);
+  return <canvas ref={canvasRef} id="canvas" className={`interaction-${mode}`} />;
 }

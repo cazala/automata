@@ -10,18 +10,14 @@
   outline: none;
 }
 
-#canvas.paint-tool {
-  cursor: crosshair;
-}
-
-#canvas.erase-tool {
-  cursor: cell;
-}
-
-#canvas.pan-tool {
+#canvas.interaction-pan {
   cursor: grab;
 }
 
-#canvas.pan-tool:active {
+#canvas.interaction-pan:active {
   cursor: grabbing;
+}
+
+#canvas.interaction-none {
+  cursor: default;
 }

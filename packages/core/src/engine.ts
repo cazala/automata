@@ -529,6 +529,38 @@ export class Engine {
     this.setCell(x, y, new Array(this.channels).fill(1));
   }
 
+  /**
+   * Fill a circular area (radius in cells) with a fixed per-channel value,
+   * e.g. an eraser stamp. Writes one buffer row per scanline; clipped at the
+   * grid edges.
+   */
+  fillCircle(cx: number, cy: number, radius: number, values: number[]): void {
+    if (!this.cellBuffers || !this.device) return;
+    const r = Math.max(0, Math.floor(radius));
+    const cxi = Math.floor(cx);
+    const cyi = Math.floor(cy);
+    for (let dy = -r; dy <= r; dy++) {
+      const y = cyi + dy;
+      if (y < 0 || y >= this.gridH) continue;
+      const half = Math.floor(Math.sqrt(r * r - dy * dy));
+      const x0 = Math.max(0, cxi - half);
+      const x1 = Math.min(this.gridW - 1, cxi + half);
+      if (x1 < x0) continue;
+      const count = x1 - x0 + 1;
+      const row = new Float32Array(count * this.channels);
+      for (let i = 0; i < count; i++) {
+        for (let c = 0; c < this.channels; c++) {
+          row[i * this.channels + c] = values[c] ?? 0;
+        }
+      }
+      this.device.queue.writeBuffer(
+        this.latest(),
+        (y * this.gridW + x0) * this.channels * 4,
+        row
+      );
+    }
+  }
+
   /** Read the current grid state back to the CPU. */
   async getCells(): Promise<Float32Array> {
     if (!this.cellBuffers) return new Float32Array(0);
