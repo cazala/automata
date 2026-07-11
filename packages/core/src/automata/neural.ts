@@ -164,6 +164,9 @@ fn activate(v: f32) -> f32 {
   private buildDirect(): AutomatonDescriptor {
     return {
       channels: this.C,
+      // The conv->activation recurrence oscillates its fine texture between
+      // two phases on alternating steps; rendering mixed parities flickers.
+      stepParity: 2,
       params: Neural.PARAMS,
       globals: Neural.GLOBALS,
       step: /* wgsl */ `

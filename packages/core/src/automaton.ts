@@ -41,6 +41,14 @@ export interface AutomatonDescriptor {
    * only that row is (re)computed from the row above; all other rows are copied.
    */
   advancesRow?: boolean;
+  /**
+   * Render only every Nth state: the engine advances the simulation in
+   * multiples of this count per frame (default 1). Set to 2 for rules with a
+   * period-2 phase oscillation (e.g. checkerboard dither), so a rendered
+   * frame never samples the opposite phase — under GPU load, frames execute
+   * irregular step counts and an alternating phase reads as flicker.
+   */
+  stepParity?: number;
   /** Extra WGSL (structs / helper fns) injected before the `step` entrypoint. */
   globals?: string;
   /** WGSL body of the per-cell step function. */

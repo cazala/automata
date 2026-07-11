@@ -107,6 +107,7 @@ export class Engine {
 
   private built: BuiltCompute | null = null;
   private advancesRowFlag = false;
+  private stepParity = 1;
 
   // loop
   private playing = false;
@@ -207,6 +208,7 @@ export class Engine {
     const built = buildCompute(desc);
     this.built = built;
     this.advancesRowFlag = desc.advancesRow === true;
+    this.stepParity = Math.max(1, Math.floor(desc.stepParity ?? 1));
 
     const prevChannels = this.channels;
     this.channels = desc.channels;
@@ -645,11 +647,19 @@ export class Engine {
       const interval = 1 / this.stepsPerSecond;
       let steps = 0;
       while (this.accum >= interval && steps < MAX_STEPS_PER_FRAME) {
-        this.step();
         this.accum -= interval;
         steps++;
       }
       if (steps === MAX_STEPS_PER_FRAME) this.accum = 0;
+      // Only advance in whole parity groups; the remainder waits in the
+      // accumulator so a rendered frame never samples the opposite phase of a
+      // period-2 rule (which reads as flicker under irregular frame timing).
+      const rem = steps % this.stepParity;
+      if (rem !== 0) {
+        steps -= rem;
+        this.accum += rem * interval;
+      }
+      for (let i = 0; i < steps; i++) this.step();
     }
 
     this.render();
