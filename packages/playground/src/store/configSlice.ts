@@ -122,9 +122,43 @@ export interface ConfigState {
   stepsPerSecond: number;
 }
 
+export interface LifePreset {
+  label: string;
+  birth: number[];
+  survival: number[];
+  density: number;
+}
+
 // Conway B3/S23 masks.
 const B3 = 1 << 3;
 const S23 = (1 << 2) | (1 << 3);
+
+export const LIFE_PRESETS: Record<string, LifePreset> = {
+  conway: {
+    label: "Conway",
+    birth: [3],
+    survival: [2, 3],
+    density: 0.5,
+  },
+  daynight: {
+    label: "Day & Night",
+    birth: [3, 6, 7, 8],
+    survival: [3, 4, 6, 7, 8],
+    density: 0.5,
+  },
+  maze: {
+    label: "Maze",
+    birth: [3],
+    survival: [1, 2, 3, 4, 5],
+    density: 0.02,
+  },
+  coral: {
+    label: "Coral",
+    birth: [3],
+    survival: [4, 5, 6, 7, 8],
+    density: 0.45,
+  },
+};
 
 // Boot into the "neural worms" rule: direct conv -> inverted gaussian.
 export const defaultConfig: ConfigState = {
@@ -184,10 +218,27 @@ function finite(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function defaultInitForType(type: AutomatonType): InitConfig {
-  return type === "lenia"
-    ? { mode: "random", density: 1 }
-    : { ...defaultConfig.init };
+function countsToMaskLocal(counts: number[]): number {
+  return counts.reduce((mask, n) => mask | (1 << n), 0);
+}
+
+function lifePresetForConfig(life: LifeConfig): LifePreset | undefined {
+  return Object.values(LIFE_PRESETS).find(
+    (preset) =>
+      countsToMaskLocal(preset.birth) === life.birth &&
+      countsToMaskLocal(preset.survival) === life.survival
+  );
+}
+
+function defaultInitForType(type: AutomatonType, life: LifeConfig): InitConfig {
+  if (type === "lenia") return { mode: "random", density: 1 };
+  if (type === "life") {
+    return {
+      mode: "random",
+      density: lifePresetForConfig(life)?.density ?? LIFE_PRESETS.conway.density,
+    };
+  }
+  return { ...defaultConfig.init };
 }
 
 function constrainNeural(neural: NeuralConfig): void {
@@ -227,6 +278,7 @@ export function sanitizeConfig(
   input: (Partial<ConfigState> & { type?: unknown }) = {}
 ): ConfigState {
   const type = isAutomatonType(input.type) ? input.type : defaultConfig.type;
+  const life = { ...defaultConfig.life, ...input.life };
   const rawSteps = input.stepsPerSecond;
   const stepsPerSecond =
     typeof rawSteps === "number" && Number.isFinite(rawSteps)
@@ -235,7 +287,7 @@ export function sanitizeConfig(
 
   const next: ConfigState = {
     type,
-    life: { ...defaultConfig.life, ...input.life },
+    life,
     elementary: { ...defaultConfig.elementary, ...input.elementary },
     neural: { ...defaultConfig.neural, ...input.neural },
     pokemon: { ...defaultConfig.pokemon, ...input.pokemon },
@@ -243,7 +295,7 @@ export function sanitizeConfig(
     lenia: { ...defaultConfig.lenia, ...input.lenia },
     grid: { ...defaultConfig.grid, ...input.grid },
     render: { ...defaultConfig.render, ...input.render },
-    init: { ...defaultInitForType(type), ...input.init },
+    init: { ...defaultInitForType(type, life), ...input.init },
     stepsPerSecond,
   };
 
@@ -261,10 +313,9 @@ const configSlice = createSlice({
     setType(state, action: PayloadAction<AutomatonType>) {
       state.type = action.payload;
       state.stepsPerSecond = defaultStepsPerSecond(action.payload);
-      if (action.payload === "lenia") {
-        state.init.mode = "random";
-        state.init.density = 1;
-      }
+      const init = defaultInitForType(action.payload, state.life);
+      state.init.mode = init.mode;
+      state.init.density = init.density;
     },
     setLife(state, action: PayloadAction<Partial<LifeConfig>>) {
       Object.assign(state.life, action.payload);

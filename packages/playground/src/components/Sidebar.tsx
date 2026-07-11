@@ -14,6 +14,7 @@ import {
   setLenia,
   setInit,
   ACTIVATION_GAUSSIAN,
+  LIFE_PRESETS,
   type AutomatonType,
 } from "../store/configSlice";
 import { requestInit } from "../store/uiSlice";
@@ -22,37 +23,7 @@ import { Button } from "./ui/Button";
 import { Field } from "./ui/Field";
 import "./Sidebar.css";
 
-const LIFE_PRESETS: Record<
-  string,
-  { label: string; birth: number[]; survival: number[]; density: number }
-> = {
-  conway: {
-    label: "Conway",
-    birth: [3],
-    survival: [2, 3],
-    density: 0.5,
-  },
-  daynight: {
-    label: "Day & Night",
-    birth: [3, 6, 7, 8],
-    survival: [3, 4, 6, 7, 8],
-    density: 0.5,
-  },
-  maze: {
-    label: "Maze",
-    birth: [3],
-    survival: [1, 2, 3, 4, 5],
-    density: 0.02,
-  },
-  coral: {
-    label: "Coral",
-    birth: [3],
-    survival: [4, 5, 6, 7, 8],
-    density: 0.08,
-  },
-};
-
-const ELEMENTARY_PRESETS = [30, 54, 60, 90, 110, 150, 184, 250];
+const ELEMENTARY_PRESETS = [30, 54, 60, 73, 90, 99, 101, 110, 150, 169, 250, 254];
 
 interface ChoiceOption {
   value: string;
@@ -303,6 +274,23 @@ export function Sidebar() {
     el.style.transform = `translateY(${clampTranslate(d, dy)}px)`;
   };
 
+  // A tap on the handle also produces a synthetic click a few ms after
+  // pointerup, dispatched at the tap's screen coordinates — by then the sheet
+  // has moved, so the click would land on whatever control slid under the
+  // finger (e.g. opening the sheet used to select whichever automaton button
+  // ended up there). Swallow exactly that one click.
+  const suppressGhostClick = () => {
+    const kill = (ev: MouseEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      window.clearTimeout(timer);
+    };
+    document.addEventListener("click", kill, { capture: true, once: true });
+    const timer = window.setTimeout(() => {
+      document.removeEventListener("click", kill, { capture: true });
+    }, 400);
+  };
+
   const onHandlePointerUp = (e: React.PointerEvent) => {
     const d = dragRef.current;
     const el = sheetRef.current;
@@ -310,11 +298,16 @@ export function Sidebar() {
     if (!d || !el) return;
     el.classList.remove("dragging");
     el.style.transform = "";
+    suppressGhostClick();
     if (!d.moved) {
       setSheetOpen((open) => !open); // tap toggles
     } else {
-      // Snap to whichever position the sheet was released closer to.
-      setSheetOpen(clampTranslate(d, e.clientY - d.startY) < d.range / 2);
+      // Commit once dragged a quarter of the travel away from the starting
+      // position (half the old midpoint rule); shorter drags snap back.
+      const settled = clampTranslate(d, e.clientY - d.startY);
+      const wasOpen = d.startTranslate === 0;
+      const commit = Math.abs(settled - d.startTranslate) > d.range / 4;
+      setSheetOpen(commit ? !wasOpen : wasOpen);
     }
   };
 
@@ -339,7 +332,7 @@ export function Sidebar() {
       </div>
       <div className="sidebar-scroll">
         <div className="sidebar-header">
-          <h3>Configuration</h3>
+          <h3>Settings</h3>
         </div>
 
         <ChoiceGroup
@@ -348,12 +341,12 @@ export function Sidebar() {
           onChange={(v) => dispatch(setType(v as AutomatonType))}
           className="automaton-choice"
           options={[
-            { value: "life", label: "Life" },
-            { value: "elementary", label: "Elementary" },
             { value: "neural", label: "Neural" },
             { value: "pokemon", label: "Pokemon" },
             { value: "rd", label: "Reaction" },
             { value: "lenia", label: "Lenia" },
+            { value: "life", label: "Life" },
+            { value: "elementary", label: "Elementary" },
           ]}
         />
 
@@ -580,7 +573,7 @@ export function Sidebar() {
           title="Reset simulation"
         >
           <RotateCcw size={16} />
-          Reset simulation
+          RESET SIMULATION
         </Button>
       </div>
     </div>

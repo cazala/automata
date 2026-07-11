@@ -18,8 +18,10 @@
   background: linear-gradient(135deg, #252530 0%, #22222d 100%);
 }
 
-.collapsible-header:hover {
-  background: linear-gradient(135deg, #2a2a38 0%, #272732 100%);
+@media (hover: hover) {
+  .collapsible-header:hover {
+    background: linear-gradient(135deg, #2a2a38 0%, #272732 100%);
+  }
 }
 
 .collapsible-title {

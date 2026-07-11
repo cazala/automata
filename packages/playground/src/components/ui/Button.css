@@ -16,9 +16,11 @@
   white-space: nowrap;
 }
 
-.ui-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
+@media (hover: hover) {
+  .ui-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
 }
 
 .ui-button:disabled {
@@ -37,13 +39,15 @@
   color: #fff;
 }
 
-.ui-button.primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #5aa8ff 0%, #4189cc 100%);
-}
+@media (hover: hover) {
+  .ui-button.primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #5aa8ff 0%, #4189cc 100%);
+  }
 
-.ui-button.danger:hover:not(:disabled) {
-  background: rgba(255, 60, 60, 0.2);
-  border-color: var(--color-accent-red);
+  .ui-button.danger:hover:not(:disabled) {
+    background: rgba(255, 60, 60, 0.2);
+    border-color: var(--color-accent-red);
+  }
 }
 
 .ui-button.warning.active {

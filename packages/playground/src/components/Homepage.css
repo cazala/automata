@@ -53,9 +53,11 @@
     opacity 520ms ease;
 }
 
+/* Exit slides exactly as far as the settings panel is wide, so the hero and
+   the panel read as one movement. */
 .app.entering-playground .homepage-card {
   opacity: 0;
-  transform: translate3d(-42vw, 0, 0);
+  transform: translate3d(-320px, 0, 0);
 }
 
 .homepage-title {
@@ -107,7 +109,8 @@
 }
 
 @media (max-width: 768px) {
+  /* Mobile: mirror the sheet handle rising 56px from the bottom. */
   .app.entering-playground .homepage-card {
-    transform: translate3d(0, -34vh, 0);
+    transform: translate3d(0, -56px, 0);
   }
 }
