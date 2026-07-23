@@ -1,22 +1,25 @@
 # `worker` (Cloudflare Worker)
 
-This package deploys a route-scoped Cloudflare Worker that serves the Automata playground at:
+This package deploys a route-scoped Cloudflare Worker that serves Automata at its canonical URL:
 
-- `https://caza.la/automata`
+- `https://caza.la/automata/`
 
-It does this by reverse-proxying to the upstream origin:
+It reverse-proxies canonical requests to the Cloudflare Pages origin:
 
-- `https://automata.caza.la`
+- `https://automata-playground.pages.dev`
 
-The browser URL stays on `caza.la/automata...` without redirecting users to `*.pages.dev`, `automata.caza.la`, or the upstream domain.
+The browser URL stays on `caza.la/automata...`. Requests to the old public origin, `https://automata.caza.la/*`, receive a permanent redirect to the equivalent canonical path. Existing `/automata/...` paths are preserved, so shared playground sessions are not broken.
+
+The Pages build sends `X-Robots-Tag: noindex` to prevent the raw origin from competing in search results. The Worker removes that header from responses served through the canonical URL.
 
 ## Configuration
 
 Configured in `wrangler.jsonc`:
 
 - Worker name: `cazala-automata-worker`
-- Route: `caza.la/automata*`
-- Upstream: `vars.UPSTREAM_ORIGIN` (default: `https://automata.caza.la`)
+- Canonical route: `caza.la/automata*`
+- Redirect route: `automata.caza.la/*`
+- Upstream: `vars.UPSTREAM_ORIGIN` (default: `https://automata-playground.pages.dev`)
 - Response header: `x-edge-proxy: cazala-automata-worker`
 
 ## Scripts
