@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#06070c" />
+    <title>Automata creative starter</title>
+  </head>
+  <body>
+    <canvas id="automata" aria-label="Interactive cellular automaton"></canvas>
+    <div id="fallback" role="status" hidden>
+      <strong>WebGPU is unavailable</strong>
+      <span>This design keeps its CSS background as a static fallback.</span>
+    </div>
+    <aside class="hud">
+      <header>
+        <strong id="scene-title">Automata</strong>
+        <span id="status">Starting…</span>
+      </header>
+      <p id="scene-description"></p>
+      <nav id="scene-links" aria-label="Choose an automaton"></nav>
+      <small id="interaction-hint">Drag to interact. Scroll to zoom.</small>
+    </aside>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
