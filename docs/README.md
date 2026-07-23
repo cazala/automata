@@ -78,13 +78,4 @@ you can use it from React, Vue, Svelte, or vanilla JavaScript.
 - **[Architecture](./architecture.md)** — understand the compute and render
   pipelines, ping-pong buffers, frame loop, camera, and playground bridge.
 
-## Repository packages
-
-- **[`@cazala/automata`](../packages/core)** — the WebGPU engine and automata
-  library.
-- **[`playground`](../packages/playground)** — the React, Redux, and Vite demo
-  application.
-- **[`worker`](../packages/worker)** — the Cloudflare Worker that serves the
-  Pages deployment at `caza.la/automata` without changing the browser URL.
-
 Automata is released under the MIT License.
