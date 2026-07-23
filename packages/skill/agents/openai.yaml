@@ -1,0 +1,4 @@
+interface:
+  display_name: "Automata"
+  short_description: "Build WebGPU cellular automata with Automata"
+  default_prompt: "Use $automata to build an interactive cellular automaton with a deliberate rule, seed, palette, and WebGPU lifecycle."

@@ -1,0 +1,24 @@
+{
+  "name": "@cazala/automata-skill",
+  "version": "0.1.0",
+  "description": "Agent skill for the `@cazala/automata` library",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/validate.mjs && npm run check:starter",
+    "check:starter": "tsc --noEmit -p assets/starter/tsconfig.json && vite build assets/starter"
+  },
+  "files": [
+    "SKILL.md",
+    "agents",
+    "assets",
+    "references",
+    "scripts"
+  ],
+  "devDependencies": {
+    "@cazala/automata": "workspace:*",
+    "@webgpu/types": "^0.1.64",
+    "typescript": "^5.0.0",
+    "vite": "^5.4.0"
+  }
+}

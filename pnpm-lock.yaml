@@ -76,6 +76,21 @@ importers:
         specifier: ^7.3.1
         version: 7.3.6(@types/node@22.20.1)
 
+  packages/skill:
+    devDependencies:
+      '@cazala/automata':
+        specifier: workspace:*
+        version: link:../core
+      '@webgpu/types':
+        specifier: ^0.1.64
+        version: 0.1.71
+      typescript:
+        specifier: ^5.0.0
+        version: 5.6.3
+      vite:
+        specifier: ^5.4.0
+        version: 5.4.21(@types/node@22.20.1)
+
   packages/worker:
     devDependencies:
       '@types/node':
