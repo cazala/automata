@@ -76,6 +76,13 @@
   color: #c8c8d4;
 }
 
+.homepage-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
 .homepage-button {
   display: inline-flex;
   align-items: center;
@@ -87,6 +94,7 @@
   color: #0d0d12;
   font-size: 16px;
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   box-shadow: 0 6px 24px rgba(200, 216, 255, 0.25);

@@ -1,0 +1,13 @@
+:root {
+  --vp-c-brand-1: #748fd6;
+  --vp-c-brand-2: #8ca5e8;
+  --vp-c-brand-3: #a8b8f0;
+}
+
+/* Keep the prose column readable while letting both navigation rails use
+   the available space on wide displays. */
+@media (min-width: 1440px) {
+  :root {
+    --vp-layout-max-width: clamp(1440px, 100vw, 2560px);
+  }
+}

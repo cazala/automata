@@ -7,10 +7,10 @@
 - Production: every push to `main`
 - Preview: every pull request targeting `main`
 - Pages project: `automata-playground`
-- Build output: `packages/playground/dist`
+- Build output: `packages/playground/dist` (playground + `/docs/`)
 - Node version: 22
 
-The build uses `VITE_PUBLIC_BASE=/automata/` so the app can be served from `https://caza.la/automata` through the Worker proxy.
+The build uses `VITE_PUBLIC_BASE=/automata/` so the app can be served from `https://caza.la/automata` through the Worker proxy. VitePress runs after Vite and writes the Markdown documentation to `packages/playground/dist/docs`, producing the searchable site at `https://caza.la/automata/docs/`.
 
 ## Worker deployment
 

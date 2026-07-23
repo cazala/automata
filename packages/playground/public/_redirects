@@ -1,2 +1,2 @@
-/automata/assets/* /assets/:splat 200
-/automata/* /index.html 200
+/automata    /       200
+/automata/*  /:splat 200

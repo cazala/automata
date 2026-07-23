@@ -63,6 +63,10 @@ jobs:
 
           VITE_PUBLIC_BASE=/automata/ pnpm --filter=@cazala/automata-playground exec -- vite build
 
+          # Build the static Markdown documentation into the same Pages artifact.
+          # This must run after Vite because Vite recreates packages/playground/dist.
+          pnpm build:docs
+
       - name: Install Wrangler
         run: npm install -g wrangler@4.107.1
 
