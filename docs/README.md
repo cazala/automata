@@ -1,4 +1,4 @@
-# Automata
+# Automata 🦠
 
 Automata is a framework-agnostic TypeScript library for building real-time
 cellular automata with WebGPU. It includes neural CA, Gray-Scott
