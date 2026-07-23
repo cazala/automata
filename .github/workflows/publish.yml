@@ -1,0 +1,123 @@
+name: npm
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/publish.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "packages/core/**"
+      - "scripts/**"
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: npm-validate-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Install
+        run: pnpm -r install --frozen-lockfile --prod=false
+
+      - name: Test versioning
+        run: node --test ./scripts/versioning.test.mjs
+
+      - name: Build core
+        run: pnpm --filter @cazala/automata build
+
+      - name: Inspect package contents
+        working-directory: packages/core
+        run: npm pack --dry-run --json
+
+  publish:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'release' && github.event.release.prerelease == false) }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: npm-publish
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup npm for trusted publishing
+        run: npm install -g npm@11.15.0
+
+      - name: Install
+        run: pnpm -r install --frozen-lockfile --prod=false
+
+      - name: Test versioning
+        run: node --test ./scripts/versioning.test.mjs
+
+      - name: Set version (@next)
+        if: github.event_name != 'release'
+        run: node ./scripts/set-next-version.mjs
+
+      - name: Set version (release tag)
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node ./scripts/set-release-version.mjs
+
+      - name: Build core
+        run: pnpm --filter @cazala/automata build
+
+      - name: Inspect package contents
+        working-directory: packages/core
+        run: npm pack --dry-run --json
+
+      - name: Publish @next
+        if: github.event_name != 'release'
+        working-directory: packages/core
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --tag next --access public --ignore-scripts
+
+      - name: Publish release
+        if: github.event_name == 'release'
+        working-directory: packages/core
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --ignore-scripts

@@ -1,7 +1,7 @@
 {
   "name": "@cazala/automata",
-  "version": "0.1.0",
-  "description": "WebGPU cellular-automata library. Configure and simulate elementary (1D Wolfram), 2D life-like (Conway), and neural cellular automata with real-time parameter tuning.",
+  "version": "0.0.0-development",
+  "description": "A library for building cellular automata simulations with WebGPU: neural CA (worms), Gray-Scott reaction-diffusion, Lenia, an 18-type pokemon battle CA, life-like and elementary (Wolfram) rules \u2014 plus a small framework for writing custom rules in WGSL with realtime parameter tuning.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,20 +13,38 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "keywords": [
     "cellular-automata",
     "webgpu",
     "gpu-compute",
+    "simulation",
+    "neural-cellular-automata",
+    "reaction-diffusion",
+    "gray-scott",
+    "lenia",
     "conway",
     "game-of-life",
     "elementary-ca",
     "wolfram",
-    "neural-cellular-automata",
-    "simulation",
+    "wgsl",
     "typescript"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cazala/automata.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://caza.la/automata/",
+  "bugs": {
+    "url": "https://github.com/cazala/automata/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "author": "cazala",
   "license": "MIT",
   "scripts": {

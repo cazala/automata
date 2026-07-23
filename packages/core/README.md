@@ -109,4 +109,4 @@ descriptive error from `initialize()` when WebGPU is unavailable.
 
 ## License
 
-MIT
+[MIT](./LICENSE)

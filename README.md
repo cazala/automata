@@ -178,4 +178,4 @@ Pages deploys the combined artifact and the worker exposes it on `caza.la`.
 
 ## License
 
-MIT
+[MIT](./LICENSE)
