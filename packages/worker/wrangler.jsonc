@@ -8,10 +8,14 @@
     {
       "pattern": "caza.la/automata*",
       "zone_name": "caza.la"
+    },
+    {
+      "pattern": "automata.caza.la/*",
+      "zone_name": "caza.la"
     }
   ],
   "vars": {
-    "UPSTREAM_ORIGIN": "https://automata.caza.la"
+    "UPSTREAM_ORIGIN": "https://automata-playground.pages.dev"
   },
   "observability": {
     "enabled": true,
