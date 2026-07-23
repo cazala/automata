@@ -111,13 +111,9 @@ jobs:
       - name: Publish @next
         if: github.event_name != 'release'
         working-directory: packages/core
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --tag next --access public --ignore-scripts
 
       - name: Publish release
         if: github.event_name == 'release'
         working-directory: packages/core
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --ignore-scripts

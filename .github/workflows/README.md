@@ -42,19 +42,20 @@ The workflow uses npm trusted publishing with GitHub OIDC. npm must be
 configured for repository `cazala/automata` and workflow file `publish.yml`,
 with `npm publish` permission.
 
-### First publication
+### npm trusted publisher
 
-Trusted publishing can only be configured after `@cazala/automata` exists on
-the npm registry. For the first publication:
+`@cazala/automata` uses an npm trusted publisher with these settings:
 
-1. Add a repository secret named `NPM_TOKEN` containing a granular npm token
-   permitted to publish the public `@cazala/automata` package, or publish the
-   package once manually.
-2. Run the npm workflow manually or merge a commit to `main` to publish the
-   first `next` version.
-3. Configure npm trusted publishing for `cazala/automata` and `publish.yml`.
-4. Delete the `NPM_TOKEN` repository secret and configure npm to require 2FA
-   while disallowing token-based publishing.
+- Provider: GitHub Actions
+- Organization or user: `cazala`
+- Repository: `automata`
+- Workflow filename: `publish.yml`
+- Environment: none
+- Allowed action: `npm publish`
+
+Publishing uses short-lived OIDC credentials. No npm token is stored in GitHub.
+After verifying the first automated publish, configure the package's npm
+publishing access to require 2FA and disallow token-based publishing.
 
 ## Required GitHub secrets
 
@@ -65,6 +66,3 @@ Add these repository secrets under GitHub Settings -> Secrets and variables -> A
 
 The Cloudflare API token needs access to edit Cloudflare Pages and Workers for
 the target account and zone.
-
-`NPM_TOKEN` is temporary and only needed to bootstrap the package before npm
-trusted publishing can be configured.
