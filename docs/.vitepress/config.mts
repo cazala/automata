@@ -168,11 +168,6 @@ export default defineConfig({
         target: "_self",
       },
       {
-        text: "Core package",
-        link: `${REPOSITORY_URL}/tree/main/packages/core`,
-        target: "_blank",
-      },
-      {
         text: "GitHub",
         link: REPOSITORY_URL,
         target: "_blank",

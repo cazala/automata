@@ -1,4 +1,4 @@
-# Automata — [caza.la/automata](https://caza.la/automata/)
+# Automata 🦠 — [caza.la/automata](https://caza.la/automata/)
 
 A framework-agnostic TypeScript library for building real-time cellular
 automata with WebGPU. Explore neural CA, Gray-Scott reaction-diffusion, Lenia,
