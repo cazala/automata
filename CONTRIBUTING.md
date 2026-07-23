@@ -19,8 +19,10 @@ inside `packages/core`).
 | Command | Effect |
 | --- | --- |
 | `pnpm dev` | Playground dev server (`--host`, reachable from your phone on the LAN) |
-| `pnpm build` | Build core, then playground |
+| `pnpm dev:docs` | VitePress docs dev server at `/automata/docs/` |
+| `pnpm build` | Build core, playground, then static documentation |
 | `pnpm build:core` | Rollup build of the library into `packages/core/dist` |
+| `pnpm build:docs` | Build docs into `packages/playground/dist/docs` |
 | `pnpm type-check` | Build core + `tsc --noEmit` on the playground |
 
 There is no test suite; verification is done by driving the playground in a
@@ -38,7 +40,8 @@ packages/playground/      demo app (React + Redux + Vite)
   src/engine/EngineProvider.tsx   engine <-> redux glue
   src/store/configSlice.ts        all user-facing settings + sanitization
   src/components/Sidebar.tsx      the settings panel / mobile bottom sheet
-docs/                     documentation
+packages/worker/          route-scoped Cloudflare Worker for caza.la/automata
+docs/                     Markdown guides + VitePress configuration
 ```
 
 ## Adding a built-in automaton
