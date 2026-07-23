@@ -1,4 +1,3 @@
-import { ArrowRight, BookOpen } from "lucide-react";
 import "./Homepage.css";
 
 export function Homepage({ onEnter }: { onEnter: () => void }) {
@@ -13,13 +12,13 @@ export function Homepage({ onEnter }: { onEnter: () => void }) {
         </p>
         <div className="homepage-actions">
           <button className="homepage-button" onClick={onEnter}>
-            Enter <ArrowRight size={18} />
+            Play
           </button>
           <a
             className="homepage-button ghost"
             href={`${import.meta.env.BASE_URL}docs/`}
           >
-            Docs <BookOpen size={18} />
+            Learn
           </a>
         </div>
       </div>
