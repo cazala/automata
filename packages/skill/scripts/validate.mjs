@@ -22,6 +22,19 @@ if (!/^name: automata$/m.test(match[1])) {
   throw new Error("Skill name must be automata");
 }
 
+const fencedCode = [...skill.matchAll(/```[^\n]*\n([\s\S]*?)```/g)]
+  .map((result) => result[1]);
+const htmlLikeGenerics = fencedCode.flatMap((code) =>
+  [...code.matchAll(/<[A-Z][A-Za-z0-9_.]*>/g)].map((result) => result[0])
+);
+
+if (htmlLikeGenerics.length > 0) {
+  throw new Error(
+    `Avoid HTML-shaped TypeScript generics in SKILL.md code fences; ` +
+      `skills.sh may truncate the rendered page at ${htmlLikeGenerics.join(", ")}`
+  );
+}
+
 const localLinks = [...skill.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)]
   .map((result) => result[1])
   .filter((link) => !link.includes(":") && !link.startsWith("#"));

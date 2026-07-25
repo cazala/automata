@@ -23,7 +23,10 @@ import {
   gridForCanvas,
 } from "@cazala/automata";
 
-const canvas = document.querySelector<HTMLCanvasElement>("canvas")!;
+const canvas = document.querySelector("canvas");
+if (!(canvas instanceof HTMLCanvasElement)) {
+  throw new Error("Missing canvas element");
+}
 const automaton = new ReactionDiffusion();
 automaton.applyPreset("mitosis");
 
