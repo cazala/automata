@@ -39,6 +39,42 @@
   margin-top: 6px;
 }
 
+.choice-help {
+  margin-top: 8px;
+  padding: 10px 11px;
+  border: 1px solid #33333f;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.045);
+  animation: choice-help-reveal 160ms ease-out both;
+}
+
+.choice-help strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.choice-help p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@keyframes choice-help-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .choice-button {
   min-width: 0;
   min-height: 34px;
@@ -306,6 +342,15 @@
     min-height: 44px;
     font-size: 13px;
     padding: 9px 8px;
+  }
+
+  .choice-help {
+    padding: 12px;
+  }
+
+  .choice-help strong,
+  .choice-help p {
+    font-size: 13px;
   }
 
   .sidebar-footer {

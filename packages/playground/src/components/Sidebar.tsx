@@ -30,18 +30,58 @@ interface ChoiceOption {
   label: string;
 }
 
+interface ChoiceHelp {
+  title: string;
+  description: string;
+}
+
+const AUTOMATON_HELP: Record<AutomatonType, ChoiceHelp> = {
+  neural: {
+    title: "Neural",
+    description:
+      "A neural cellular automaton that uses local convolutions to update each cell from its neighbors, producing self-organizing worms, mosaics, and other organic textures.",
+  },
+  pokemon: {
+    title: "Pokemon",
+    description:
+      "Colored elemental domains battle along their borders, where Pokemon types that are weak against their neighbors get converted and overtaken.",
+  },
+  rd: {
+    title: "Reaction–diffusion",
+    description:
+      "A Gray–Scott system that models two chemicals spreading and reacting into coral, spots, worms, and wave-like patterns.",
+  },
+  lenia: {
+    title: "Lenia",
+    description:
+      "A continuous-valued cellular automaton with smooth neighborhoods that form soft, organism-like blobs and islands.",
+  },
+  life: {
+    title: "Life-like",
+    description:
+      "Binary cells are born or survive according to their neighbor counts, covering Conway’s Game of Life and many related rules.",
+  },
+  elementary: {
+    title: "Elementary",
+    description:
+      "A one-dimensional Wolfram rule drawn row by row, turning a single seed into a scrolling two-dimensional history.",
+  },
+};
+
 function ChoiceGroup({
   label,
   value,
   options,
   onChange,
   className = "",
+  help,
 }: {
   label: string;
   value: string;
   options: ChoiceOption[];
   onChange: (value: string) => void;
   className?: string;
+  help?: ChoiceHelp;
 }) {
   return (
     <Field className={`choice-field ${className}`}>
@@ -58,6 +98,12 @@ function ChoiceGroup({
           </button>
         ))}
       </div>
+      {help && (
+        <div className="choice-help" role="note">
+          <strong>{help.title}</strong>
+          <p>{help.description}</p>
+        </div>
+      )}
     </Field>
   );
 }
@@ -340,6 +386,7 @@ export function Sidebar() {
           value={config.type}
           onChange={(v) => dispatch(setType(v as AutomatonType))}
           className="automaton-choice"
+          help={AUTOMATON_HELP[config.type]}
           options={[
             { value: "neural", label: "Neural" },
             { value: "pokemon", label: "Pokemon" },
