@@ -1,7 +1,6 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@cazala/automata": ["../core/src"],
       "@cazala/automata/*": ["../core/src/*"]
