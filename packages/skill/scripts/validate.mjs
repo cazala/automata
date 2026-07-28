@@ -35,6 +35,18 @@ if (htmlLikeGenerics.length > 0) {
   );
 }
 
+const body = skill.slice(match[0].length);
+const skillsShPreviewLimit = 500;
+const previewBreak = body.indexOf("\n\n", skillsShPreviewLimit);
+const previewEnd = previewBreak === -1 ? body.length : previewBreak + 2;
+const previewFenceCount = [...body.slice(0, previewEnd).matchAll(/^```/gm)].length;
+
+if (previewFenceCount % 2 !== 0) {
+  throw new Error(
+    "Keep the skills.sh preview boundary outside fenced code blocks"
+  );
+}
+
 const localLinks = [...skill.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)]
   .map((result) => result[1])
   .filter((link) => !link.includes(":") && !link.startsWith("#"));

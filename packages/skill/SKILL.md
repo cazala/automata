@@ -14,7 +14,7 @@ Build a visible evolving pattern first, then tune it. Treat an Automata scene as
 
 ## Start with a working scene
 
-Use `gridForCanvas`, initialize before mutating state, and prefer `reset()` over generic randomization:
+Use `gridForCanvas`, initialize before mutating state, and prefer `reset()` over generic randomization. This inline example shows only the minimal lifecycle; for responsive sizing, controls, interaction, and cleanup, start from the bundled Vite app described below:
 
 ```ts
 import {
