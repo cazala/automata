@@ -4,15 +4,13 @@ import {
   SkipForward,
   RotateCcw,
   Trash2,
-  Save,
-  FolderOpen,
   Paintbrush,
   Eraser,
   Move,
 } from "lucide-react";
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
-import { setActiveModal, setHomepage, setTool, type Tool } from "../store/uiSlice";
+import { setHomepage, setTool, type Tool } from "../store/uiSlice";
 import { maxStepsPerSecond, setStepsPerSecond } from "../store/configSlice";
 import { Button } from "./ui/Button";
 import "./TopBar.css";
@@ -102,14 +100,6 @@ export function TopBar() {
 
       <div className="topbar-right">
         <span className="topbar-fps">{fps} fps</span>
-        <div className="button-group">
-          <Button onClick={() => dispatch(setActiveModal("save"))} title="Save session">
-            <Save size={16} />
-          </Button>
-          <Button onClick={() => dispatch(setActiveModal("load"))} title="Load session">
-            <FolderOpen size={16} />
-          </Button>
-        </div>
       </div>
     </div>
   );

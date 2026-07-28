@@ -104,8 +104,8 @@ a zoom threshold.
 React + Redux, but the engine stays vanilla — `EngineProvider.tsx` is the
 entire bridge:
 
-- `configSlice` holds all user-facing settings with sanitization/clamping and
-  is the persistence format (localStorage sessions).
+- `configSlice` holds all user-facing settings and clamps values at the
+  reducer boundary.
 - Effects dual-write config changes into automaton setters (realtime) or
   rebuild paths (structural), and `engine.reset(...)` re-seeds via the
   automaton's own `seed()`.

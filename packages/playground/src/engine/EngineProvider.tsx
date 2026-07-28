@@ -510,7 +510,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     engineRef.current?.setStepsPerSecond(config.stepsPerSecond);
   }, [config.stepsPerSecond]);
 
-  // Explicit re-seed requests (presets, session loads).
+  // Explicit re-seed requests from presets and seed controls.
   useEffect(() => {
     if (initNonce > 0) applyInit();
     // eslint-disable-next-line react-hooks/exhaustive-deps

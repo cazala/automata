@@ -8,7 +8,7 @@ It reverse-proxies canonical requests to the Cloudflare Pages origin:
 
 - `https://automata-playground.pages.dev`
 
-The browser URL stays on `caza.la/automata...`. Requests to the old public origin, `https://automata.caza.la/*`, receive a permanent redirect to the equivalent canonical path. Existing `/automata/...` paths are preserved, so shared playground sessions are not broken.
+The browser URL stays on `caza.la/automata...`. Requests to the old public origin, `https://automata.caza.la/*`, receive a permanent redirect to the equivalent canonical path. Existing `/automata/...` paths are preserved for documentation and asset links.
 
 The Pages build sends `X-Robots-Tag: noindex` to prevent the raw origin from competing in search results. The Worker removes that header from responses served through the canonical URL.
 

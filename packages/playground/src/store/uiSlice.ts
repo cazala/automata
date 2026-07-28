@@ -1,8 +1,7 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { loadConfig, togglePokemonType } from "./configSlice";
+import { togglePokemonType } from "./configSlice";
 
 export type Tool = "paint" | "erase" | "pan";
-export type ModalKind = null | "save" | "load";
 
 export interface UiState {
   isHomepage: boolean;
@@ -10,7 +9,6 @@ export interface UiState {
   fps: number;
   tool: Tool;
   brushSize: number;
-  activeModal: ModalKind;
   /** Bumped to ask the engine to re-apply the initial state. */
   initNonce: number;
 }
@@ -21,7 +19,6 @@ const initialState: UiState = {
   fps: 0,
   tool: "paint",
   brushSize: 1,
-  activeModal: null,
   initNonce: 0,
 };
 
@@ -44,24 +41,16 @@ const uiSlice = createSlice({
     setBrushSize(state, action: PayloadAction<number>) {
       state.brushSize = action.payload;
     },
-    setActiveModal(state, action: PayloadAction<ModalKind>) {
-      state.activeModal = action.payload;
-    },
     requestInit(state) {
       state.initNonce++;
     },
   },
-  // Session loads rewrite the initial-state config wholesale, and pokemon type
-  // toggles change the seedable pool, so the grid has to be re-seeded even
-  // when no structural param changed.
+  // Pokemon type toggles change the seedable pool, so the grid has to be
+  // re-seeded even when no structural parameter changed.
   extraReducers: (builder) => {
-    builder
-      .addCase(loadConfig, (state) => {
-        state.initNonce++;
-      })
-      .addCase(togglePokemonType, (state) => {
-        state.initNonce++;
-      });
+    builder.addCase(togglePokemonType, (state) => {
+      state.initNonce++;
+    });
   },
 });
 
@@ -71,7 +60,6 @@ export const {
   setFps,
   setTool,
   setBrushSize,
-  setActiveModal,
   requestInit,
 } = uiSlice.actions;
 

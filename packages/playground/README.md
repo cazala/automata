@@ -35,18 +35,15 @@ library source.
   boot view is pinned as max zoom-out, and touch painting is pinch-safe.
 - **Pokemon extras**: live type-share legend (GPU readback poll), a running
   battle counter, and click-to-toggle type participation.
-- **Sessions**: save/load named configurations via localStorage, with
-  sanitization for configs from older versions.
 
 ## Where things live
 
 | Path | Role |
 | --- | --- |
 | `src/engine/EngineProvider.tsx` | the entire React ↔ engine bridge: builds automata from config, dual-writes param changes, seeding via `engine.reset()` |
-| `src/store/configSlice.ts` | all user-facing settings, defaults, clamping/sanitization (also the session persistence format) |
+| `src/store/configSlice.ts` | all user-facing settings, defaults, and parameter clamping |
 | `src/components/Canvas.tsx` | pointer/pinch interaction reference implementation |
 | `src/components/Sidebar.tsx` | settings panel; desktop overlay + mobile bottom sheet |
-| `src/utils/sessions.ts` | localStorage session store |
 
 The engine itself stays framework-agnostic — if you're embedding the library
 in your own app, `EngineProvider.tsx` and `Canvas.tsx` are the files worth

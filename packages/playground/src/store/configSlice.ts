@@ -202,19 +202,6 @@ export const defaultConfig: ConfigState = {
   stepsPerSecond: 120,
 };
 
-const AUTOMATON_TYPES = new Set<AutomatonType>([
-  "life",
-  "elementary",
-  "neural",
-  "pokemon",
-  "rd",
-  "lenia",
-]);
-
-function isAutomatonType(type: unknown): type is AutomatonType {
-  return typeof type === "string" && AUTOMATON_TYPES.has(type as AutomatonType);
-}
-
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -350,62 +337,6 @@ function constrainLife(rule: LifeConfig): void {
   );
 }
 
-interface LegacyLargerThanLifeConfig {
-  radius: number;
-  states: number;
-  birthMin: number;
-  birthMax: number;
-  survivalMin: number;
-  survivalMax: number;
-}
-
-type ConfigInput = Omit<Partial<ConfigState>, "type" | "life"> & {
-  type?: unknown;
-  life?: Partial<LifeConfig>;
-  largerLife?: Partial<LegacyLargerThanLifeConfig>;
-};
-
-export function sanitizeConfig(
-  input: ConfigInput = {}
-): ConfigState {
-  const legacyExpandedLife = input.type === "largerLife";
-  const type = legacyExpandedLife
-    ? "life"
-    : isAutomatonType(input.type)
-      ? input.type
-      : defaultConfig.type;
-  const life = { ...defaultConfig.life, ...input.life };
-  if (legacyExpandedLife) {
-    Object.assign(life, { mode: "larger", ...input.largerLife });
-  }
-  constrainLife(life);
-  const rawSteps = input.stepsPerSecond;
-  const stepsPerSecond =
-    typeof rawSteps === "number" && Number.isFinite(rawSteps)
-      ? clamp(rawSteps, 1, maxStepsPerSecond(type))
-      : defaultStepsForConfig(type, life);
-
-  const next: ConfigState = {
-    type,
-    life,
-    elementary: { ...defaultConfig.elementary, ...input.elementary },
-    neural: { ...defaultConfig.neural, ...input.neural },
-    pokemon: { ...defaultConfig.pokemon, ...input.pokemon },
-    rd: { ...defaultConfig.rd, ...input.rd },
-    lenia: { ...defaultConfig.lenia, ...input.lenia },
-    grid: { ...defaultConfig.grid, ...input.grid },
-    render: { ...defaultConfig.render, ...input.render },
-    init: { ...defaultInitForType(type, life), ...input.init },
-    stepsPerSecond,
-  };
-
-  constrainNeural(next.neural);
-  constrainPokemon(next.pokemon);
-  constrainRD(next.rd);
-  constrainLenia(next.lenia);
-  return next;
-}
-
 const configSlice = createSlice({
   name: "config",
   initialState: defaultConfig,
@@ -469,9 +400,6 @@ const configSlice = createSlice({
     setStepsPerSecond(state, action: PayloadAction<number>) {
       state.stepsPerSecond = clamp(action.payload, 1, maxStepsPerSecond(state.type));
     },
-    loadConfig(_state, action: PayloadAction<ConfigState>) {
-      return sanitizeConfig(action.payload);
-    },
   },
 });
 
@@ -488,7 +416,6 @@ export const {
   setRender,
   setInit,
   setStepsPerSecond,
-  loadConfig,
 } = configSlice.actions;
 
 export default configSlice.reducer;

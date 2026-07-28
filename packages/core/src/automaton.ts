@@ -176,7 +176,7 @@ export abstract class Automaton {
     this._onParam?.(name);
   }
 
-  /** Restore a bag of param values (clamped; used by import/session load). */
+  /** Restore a bag of parameter values, clamping each declared field. */
   setValues(values: Record<string, number>): void {
     for (const [k, v] of Object.entries(values)) {
       if (typeof v === "number") this.set(k, v);

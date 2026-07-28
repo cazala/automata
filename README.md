@@ -52,7 +52,7 @@ built-in rules, and framework for custom automata.
 ### [`playground`](./packages/playground) — interactive application
 
 A React, Redux, and Vite application that showcases six automata with live
-parameters, presets, sessions, pointer tools, responsive controls, and mobile
+parameters, presets, pointer tools, responsive controls, and mobile
 pinch zoom. It also serves as the integration reference and manual test bed.
 
 ### [`worker`](./packages/worker) — Cloudflare edge proxy
