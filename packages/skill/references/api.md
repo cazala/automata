@@ -56,6 +56,7 @@ Use `isInitialized()`, `play()`, `pause()`, `toggle()`, `isPlaying()`, `stop()`,
 | `Lenia` | 1 | Continuous blobs and organisms | Kernel-scale continuous blobs | 30 |
 | `Pokemon` | 4 | Colored type-domain battles | Specialized Voronoi mosaic | 100 |
 | `Life` | 1 | Conway and other B/S rules | Preset-specific soup density | 120 |
+| `LargerThanLife` | 1 | Wide neighborhoods, range rules, refractory trails | Preset-specific soup density | 30 |
 | `Elementary` | 1 | Wolfram row history | Single top-center cell | 120 |
 | `BriansBrain` | 1 | Firing/refractory glider storm | Sparse random firing cells | 120 |
 | `Cyclic` | 4 | Rotating multicolor spirals | Uniform random states | 120 |
@@ -67,6 +68,7 @@ Useful exports include:
 - `Neural.PRESETS`, `WORMS_KERNEL`, and `WORMS_GAUSS_WIDTH`
 - `ReactionDiffusion.PRESETS`
 - `Life.PRESETS`, `countsToMask(...)`, and `maskToCounts(...)`
+- `LargerThanLife.PRESETS`, `largerThanLifeNeighborCount(...)`, and radius/state bounds
 - `Elementary.PRESETS`
 - `POKEMON_TYPES` and `POKEMON_TYPE_COUNT`
 - `cyclicColor(...)`
@@ -93,6 +95,15 @@ const automaton = new Life({
   birth: countsToMask(preset.birth),
   survival: countsToMask(preset.survival),
 });
+engine.reset({ mode: "random", density: preset.density });
+```
+
+- `LargerThanLife.PRESETS` supplies radius, state count, inclusive birth/survival ranges, and a suited density:
+
+```ts
+const preset = LargerThanLife.PRESETS.bosco;
+const automaton = new LargerThanLife(preset);
+engine.setAutomaton(automaton);
 engine.reset({ mode: "random", density: preset.density });
 ```
 
@@ -124,6 +135,7 @@ Structural values rebuild pipelines or buffers:
 - `Neural.setHidden(...)`
 - `Neural.reseed(...)`
 - `Lenia.setRadius(...)`
+- `LargerThanLife.setRadius(...)`
 
 Do not drive structural setters from animation or pointer loops.
 

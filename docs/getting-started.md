@@ -71,13 +71,22 @@ engine.reset({ mode: "center" });               // a single seed to grow from
 ## 4. Picking an automaton
 
 ```ts
-import { ReactionDiffusion, Lenia, Life, Pokemon } from "@cazala/automata";
+import {
+  ReactionDiffusion,
+  Lenia,
+  Life,
+  LargerThanLife,
+} from "@cazala/automata";
 
 const rd = new ReactionDiffusion();     // coral growth by default
 rd.applyPreset("mitosis");              // or dividing spots
 
 const life = new Life();                // Conway
 const preset = Life.PRESETS.daynight;   // masks + a suited soup density
+
+const larger = new LargerThanLife(      // wide ranges + optional cooldown states
+  LargerThanLife.PRESETS.bosco
+);
 
 const lenia = new Lenia({ radius: 10 });
 ```

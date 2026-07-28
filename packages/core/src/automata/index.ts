@@ -1,5 +1,18 @@
 export { Life, countsToMask, maskToCounts } from "./life";
 export type { LifeOptions, LifePreset } from "./life";
+export {
+  LargerThanLife,
+  largerThanLifeNeighborCount,
+  LARGER_THAN_LIFE_MIN_RADIUS,
+  LARGER_THAN_LIFE_MAX_RADIUS,
+  LARGER_THAN_LIFE_MIN_STATES,
+  LARGER_THAN_LIFE_MAX_STATES,
+} from "./larger-than-life";
+export type {
+  LargerThanLifeOptions,
+  LargerThanLifePreset,
+  NeighborRange,
+} from "./larger-than-life";
 export { Elementary } from "./elementary";
 export type { ElementaryOptions } from "./elementary";
 export { Neural, WORMS_KERNEL, WORMS_GAUSS_WIDTH } from "./neural";

@@ -21,15 +21,16 @@ library source.
 ## What's in it
 
 - **Six automata**: Neural (worms — the boot default), Pokemon type battles,
-  Gray-Scott reaction-diffusion, Lenia, life-like rules, and elementary
-  (Wolfram) rules, with per-automaton presets, speeds, and settings panels.
+  Gray-Scott reaction-diffusion, Lenia, Life (classic and expanded-neighborhood
+  presets), and elementary (Wolfram) rules, with per-automaton presets, speeds,
+  and settings panels.
 - **Live tuning**: every declared parameter is a slider/toggle wired to the
-  automaton's realtime setters; structural knobs (Lenia radius, states)
+  automaton's realtime setters; structural knobs (such as neighborhood radii)
   rebuild transparently.
 - **Interaction**: per-automaton pointer modes — a 25-cell eraser with stroke
-  interpolation (neural/RD/lenia/life), camera panning (pokemon), inert
-  (elementary) — plus wheel zoom and two-finger pinch zoom, with grow-to-cover
-  grid semantics on zoom-out.
+  interpolation (neural/RD/lenia/life), camera panning
+  (pokemon), inert (elementary) — plus wheel zoom and two-finger pinch zoom,
+  with grow-to-cover grid semantics on zoom-out.
 - **Mobile support**: the settings panel becomes a drag-up bottom sheet, the
   boot view is pinned as max zoom-out, and touch painting is pinch-safe.
 - **Pokemon extras**: live type-share legend (GPU readback poll), a running

@@ -2,8 +2,8 @@
 
 Automata is a framework-agnostic TypeScript library for building real-time
 cellular automata with WebGPU. It includes neural CA, Gray-Scott
-reaction-diffusion, Lenia, Pokemon type battles, life-like and elementary
-rules, plus a compact API for writing your own rules in WGSL.
+reaction-diffusion, Lenia, Pokemon type battles, classic and Larger-than-Life
+rules, elementary rules, plus a compact API for writing your own rules in WGSL.
 
 [Open the playground](https://caza.la/automata/) ·
 [View on GitHub](https://github.com/cazala/automata)
@@ -20,8 +20,8 @@ any integration code.
 
 - **WebGPU compute** — advance large cell grids in parallel and render them
   directly from GPU storage buffers.
-- **Eight built-in automata** — neural CA, Gray-Scott, Lenia, Pokemon, Life,
-  elementary rules, Brian's Brain, and cyclic automata.
+- **Nine built-in automata** — neural CA, Gray-Scott, Lenia, Pokemon, Life,
+  Larger than Life, elementary rules, Brian's Brain, and cyclic automata.
 - **Rules that start well** — each automaton provides tuned defaults, presets,
   render hints, and seeding suited to its dynamics.
 - **Realtime parameters** — update declared values with uniform writes, without

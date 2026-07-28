@@ -142,6 +142,91 @@
   font-weight: 600;
 }
 
+.info-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  cursor: help;
+}
+
+.info-tooltip:focus-visible {
+  border-radius: 3px;
+  outline: 1px solid var(--color-slider-thumb);
+  outline-offset: 2px;
+}
+
+.info-tooltip-content {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  left: calc(100% + 8px);
+  box-sizing: border-box;
+  width: 210px;
+  padding: 7px 9px;
+  border: 1px solid #3a3a48;
+  border-radius: 6px;
+  background: #171720;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  color: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-3px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+
+.info-tooltip:hover .info-tooltip-content,
+.info-tooltip:focus .info-tooltip-content {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.neighbor-range-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.neighbor-range-heading label {
+  margin: 0;
+}
+
+.neighbor-range-heading span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.neighbor-range-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.neighbor-range-inputs .field {
+  margin-bottom: 0;
+}
+
+.neighbor-range-inputs .number-input-row {
+  display: block;
+  margin: 0;
+  font-size: 11px;
+}
+
+.neighbor-range-inputs .number-field input[type="number"] {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 4px;
+}
+
 .kernel-preview {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

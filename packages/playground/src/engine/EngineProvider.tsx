@@ -8,6 +8,7 @@ import React, {
 import {
   Engine,
   Life,
+  LargerThanLife,
   Elementary,
   Neural,
   Pokemon,
@@ -81,6 +82,20 @@ function gridForCanvas(cssW: number, cssH: number, type: ConfigState["type"]) {
 function buildAutomaton(config: ConfigState): Automaton {
   switch (config.type) {
     case "life":
+      if (config.life.mode === "larger") {
+        return new LargerThanLife({
+          radius: config.life.radius,
+          states: config.life.states,
+          birth: {
+            min: config.life.birthMin,
+            max: config.life.birthMax,
+          },
+          survival: {
+            min: config.life.survivalMin,
+            max: config.life.survivalMax,
+          },
+        });
+      }
       return new Life({
         birth: config.life.birth,
         survival: config.life.survival,
@@ -334,6 +349,19 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.type]);
 
+  // Life's preset list spans two implementations. Switching between classic
+  // masks and expanded ranges keeps one visible automaton but swaps the core
+  // rule, then seeds it with the selected preset's density.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine || config.type !== "life") return;
+    const automaton = buildAutomaton(configRef.current);
+    automatonRef.current = automaton;
+    engine.setAutomaton(automaton);
+    applyInit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.life.mode]);
+
   // Life params.
   useEffect(() => {
     const a = automatonRef.current;
@@ -342,6 +370,30 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       a.setSurvival(config.life.survival);
     }
   }, [config.life.birth, config.life.survival]);
+
+  // Larger-than-Life radius is structural; ranges and state count are realtime.
+  useEffect(() => {
+    const a = automatonRef.current;
+    if (a instanceof LargerThanLife) {
+      a.setRadius(config.life.radius);
+      a.setStates(config.life.states);
+      a.setBirthRange({
+        min: config.life.birthMin,
+        max: config.life.birthMax,
+      });
+      a.setSurvivalRange({
+        min: config.life.survivalMin,
+        max: config.life.survivalMax,
+      });
+    }
+  }, [
+    config.life.radius,
+    config.life.states,
+    config.life.birthMin,
+    config.life.birthMax,
+    config.life.survivalMin,
+    config.life.survivalMax,
+  ]);
 
   // Elementary params.
   useEffect(() => {

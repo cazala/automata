@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { RotateCcw } from "lucide-react";
-import { countsToMask, Elementary, maskToCounts, POKEMON_TYPES, WORMS_KERNEL } from "@cazala/automata";
+import { Info, RotateCcw } from "lucide-react";
+import {
+  countsToMask,
+  Elementary,
+  largerThanLifeNeighborCount,
+  LARGER_THAN_LIFE_MAX_RADIUS,
+  LARGER_THAN_LIFE_MAX_STATES,
+  LARGER_THAN_LIFE_MIN_RADIUS,
+  LARGER_THAN_LIFE_MIN_STATES,
+  maskToCounts,
+  POKEMON_TYPES,
+  WORMS_KERNEL,
+} from "@cazala/automata";
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
 import {
@@ -15,12 +26,14 @@ import {
   setInit,
   ACTIVATION_GAUSSIAN,
   LIFE_PRESETS,
+  EXPANDED_LIFE_PRESETS,
   type AutomatonType,
 } from "../store/configSlice";
 import { requestInit } from "../store/uiSlice";
 import { Slider } from "./ui/Slider";
 import { Button } from "./ui/Button";
 import { Field } from "./ui/Field";
+import { NumberInput } from "./ui/NumberInput";
 import "./Sidebar.css";
 
 const ELEMENTARY_PRESETS = Elementary.PRESETS;
@@ -59,7 +72,7 @@ const AUTOMATON_HELP: Record<AutomatonType, ChoiceHelp> = {
   life: {
     title: "Life-like",
     description:
-      "Binary cells are born or survive according to their neighbor counts, covering Conway’s Game of Life and many related rules.",
+      "Cells are born or survive from neighbor counts, spanning classic Life-like masks and expanded-neighborhood range rules.",
   },
   elementary: {
     title: "Elementary",
@@ -108,6 +121,17 @@ function ChoiceGroup({
   );
 }
 
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="info-tooltip" tabIndex={0} aria-label={text}>
+      <Info size={13} strokeWidth={2} aria-hidden="true" />
+      <span className="info-tooltip-content" role="tooltip">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 function NeighborMask({
   label,
   mask,
@@ -137,6 +161,45 @@ function NeighborMask({
             {n}
           </button>
         ))}
+      </div>
+    </Field>
+  );
+}
+
+function NeighborRangeInputs({
+  label,
+  min,
+  max,
+  limit,
+  onChange,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  limit: number;
+  onChange: (range: { min: number; max: number }) => void;
+}) {
+  return (
+    <Field className="neighbor-range-field">
+      <div className="neighbor-range-heading">
+        <label>{label}</label>
+        <span>0–{limit} neighbors</span>
+      </div>
+      <div className="neighbor-range-inputs">
+        <NumberInput
+          label="Min"
+          value={min}
+          min={0}
+          max={max}
+          onChange={(value) => onChange({ min: value, max })}
+        />
+        <NumberInput
+          label="Max"
+          value={max}
+          min={min}
+          max={limit}
+          onChange={(value) => onChange({ min, max: value })}
+        />
       </div>
     </Field>
   );
@@ -358,11 +421,24 @@ export function Sidebar() {
   };
 
   const lifePresetValue =
-    Object.entries(LIFE_PRESETS).find(
-      ([, p]) =>
-        countsToMask(p.birth) === config.life.birth &&
-        countsToMask(p.survival) === config.life.survival
-    )?.[0] ?? "custom";
+    config.life.mode === "classic"
+      ? Object.entries(LIFE_PRESETS).find(
+          ([, p]) =>
+            countsToMask(p.birth) === config.life.birth &&
+            countsToMask(p.survival) === config.life.survival
+        )?.[0] ?? "custom"
+      : Object.entries(EXPANDED_LIFE_PRESETS).find(
+          ([, p]) =>
+            p.radius === config.life.radius &&
+            p.states === config.life.states &&
+            p.birth.min === config.life.birthMin &&
+            p.birth.max === config.life.birthMax &&
+            p.survival.min === config.life.survivalMin &&
+            p.survival.max === config.life.survivalMax
+        )?.[0] ?? "custom";
+  const expandedLifeMaxNeighbors = largerThanLifeNeighborCount(
+    config.life.radius
+  );
 
   return (
     <div ref={sheetRef} className={`right-sidebar ${sheetOpen ? "open" : ""}`}>
@@ -403,36 +479,113 @@ export function Sidebar() {
               label="Preset"
               value={lifePresetValue}
               onChange={(v) => {
-                const p = LIFE_PRESETS[v];
-                if (p)
+                const classic = LIFE_PRESETS[v];
+                if (classic) {
                   dispatch(
                     setLife({
-                      birth: countsToMask(p.birth),
-                      survival: countsToMask(p.survival),
+                      mode: "classic",
+                      birth: countsToMask(classic.birth),
+                      survival: countsToMask(classic.survival),
                     })
                   );
-                if (p) {
-                  dispatch(setInit({ mode: "random", density: p.density }));
+                  dispatch(
+                    setInit({ mode: "random", density: classic.density })
+                  );
                   dispatch(requestInit());
+                  return;
                 }
+
+                const expanded = EXPANDED_LIFE_PRESETS[v];
+                if (!expanded) return;
+                dispatch(
+                  setLife({
+                    mode: "larger",
+                    radius: expanded.radius,
+                    states: expanded.states,
+                    birthMin: expanded.birth.min,
+                    birthMax: expanded.birth.max,
+                    survivalMin: expanded.survival.min,
+                    survivalMax: expanded.survival.max,
+                  })
+                );
+                dispatch(
+                  setInit({ mode: "random", density: expanded.density })
+                );
+                dispatch(requestInit());
               }}
               options={[
                 ...Object.entries(LIFE_PRESETS).map(([value, p]) => ({
                   value,
                   label: p.label,
                 })),
+                ...Object.entries(EXPANDED_LIFE_PRESETS).map(([value, p]) => ({
+                  value,
+                  label: p.label,
+                })),
               ]}
             />
-            <NeighborMask
-              label="Birth (neighbors)"
-              mask={config.life.birth}
-              onChange={(m) => dispatch(setLife({ birth: m }))}
-            />
-            <NeighborMask
-              label="Survival (neighbors)"
-              mask={config.life.survival}
-              onChange={(m) => dispatch(setLife({ survival: m }))}
-            />
+            {config.life.mode === "classic" ? (
+              <>
+                <NeighborMask
+                  label="Birth (neighbors)"
+                  mask={config.life.birth}
+                  onChange={(m) => dispatch(setLife({ birth: m }))}
+                />
+                <NeighborMask
+                  label="Survival (neighbors)"
+                  mask={config.life.survival}
+                  onChange={(m) => dispatch(setLife({ survival: m }))}
+                />
+              </>
+            ) : (
+              <>
+                <NumberInput
+                  label="Neighborhood radius"
+                  value={config.life.radius}
+                  min={LARGER_THAN_LIFE_MIN_RADIUS}
+                  max={LARGER_THAN_LIFE_MAX_RADIUS}
+                  onChange={(radius) => dispatch(setLife({ radius }))}
+                />
+                <NumberInput
+                  label="States"
+                  labelAccessory={
+                    <InfoTooltip text="More than 2 states means cooldown: each extra state adds one refractory step." />
+                  }
+                  value={config.life.states}
+                  min={LARGER_THAN_LIFE_MIN_STATES}
+                  max={LARGER_THAN_LIFE_MAX_STATES}
+                  onChange={(states) => dispatch(setLife({ states }))}
+                />
+                <NeighborRangeInputs
+                  label="Birth range"
+                  min={config.life.birthMin}
+                  max={config.life.birthMax}
+                  limit={expandedLifeMaxNeighbors}
+                  onChange={(range) =>
+                    dispatch(
+                      setLife({
+                        birthMin: range.min,
+                        birthMax: range.max,
+                      })
+                    )
+                  }
+                />
+                <NeighborRangeInputs
+                  label="Survival range"
+                  min={config.life.survivalMin}
+                  max={config.life.survivalMax}
+                  limit={expandedLifeMaxNeighbors}
+                  onChange={(range) =>
+                    dispatch(
+                      setLife({
+                        survivalMin: range.min,
+                        survivalMax: range.max,
+                      })
+                    )
+                  }
+                />
+              </>
+            )}
           </>
         )}
 

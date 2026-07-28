@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { Field } from "./Field";
 import "./NumberInput.css";
 
 interface NumberInputProps {
   label: string;
+  labelAccessory?: React.ReactNode;
   value: number;
   onChange: (value: number) => void;
   min?: number;
@@ -14,6 +15,7 @@ interface NumberInputProps {
 
 export function NumberInput({
   label,
+  labelAccessory,
   value,
   onChange,
   min,
@@ -21,6 +23,7 @@ export function NumberInput({
   step = 1,
   disabled = false,
 }: NumberInputProps) {
+  const inputId = useId();
   // Held as text while editing so intermediate states ("", "-") don't get
   // coerced out from under the caret.
   const [draft, setDraft] = useState(String(value));
@@ -42,9 +45,13 @@ export function NumberInput({
 
   return (
     <Field className="number-field">
-      <label>
-        <span>{label}</span>
+      <div className="number-input-row">
+        <span className="number-input-heading">
+          <label htmlFor={inputId}>{label}</label>
+          {labelAccessory}
+        </span>
         <input
+          id={inputId}
           type="number"
           value={draft}
           min={min}
@@ -65,7 +72,7 @@ export function NumberInput({
             }
           }}
         />
-      </label>
+      </div>
     </Field>
   );
 }

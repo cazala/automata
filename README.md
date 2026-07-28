@@ -9,8 +9,8 @@ WGSL.
 
 - **WebGPU compute:** advance large cell grids in parallel and render directly
   from GPU storage buffers.
-- **Eight built-in automata:** neural CA, reaction-diffusion, Lenia, Pokemon,
-  Life, elementary rules, Brian's Brain, and cyclic automata.
+- **Nine built-in automata:** neural CA, reaction-diffusion, Lenia, Pokemon,
+  Life, Larger than Life, elementary rules, Brian's Brain, and cyclic automata.
 - **Tuned starting states:** each rule provides useful defaults, presets,
   render hints, and seeding designed for its dynamics.
 - **Realtime controls:** update declared parameters with uniform writes and no
@@ -103,6 +103,7 @@ keep a CSS or static-image fallback.
 | `Lenia` | Continuous Life with a radial kernel and growth function | Realtime `mu`, `sigma`, and `dt`; structural radius |
 | `Pokemon` | 18-type battle CA using the type-effectiveness chart | Coherent domains and adjustable battle threshold |
 | `Life` | Any life-like birth/survival rule | Conway, Day & Night, maze, and coral presets |
+| `LargerThanLife` | Large Moore neighborhoods with range rules and cooldown states | Bosco, Majority, Waffle, and multistate presets |
 | `Elementary` | Wolfram rules 0–255 rendered as scrolling history | Presets for visually interesting rules |
 | `BriansBrain` | Three-state firing/refractory automaton | Glider-rich dynamics |
 | `Cyclic` | Each state is consumed by its successor | Rotating spiral patterns |
@@ -169,9 +170,9 @@ Pages deploys the combined artifact and the worker exposes it on `caza.la`.
   per-frame backlog to prevent a slow frame from causing a death spiral.
 - `gridForCanvas()` chooses a grid from the canvas size and caps each dimension
   to keep fullscreen simulations bounded.
-- Lenia is the most expensive built-in because its work scales with kernel
-  radius squared; reaction-diffusion and small-neighborhood rules can run many
-  more steps per second.
+- Lenia and Larger than Life are the most expensive built-ins because their
+  work scales with neighborhood area; reaction-diffusion and
+  small-neighborhood rules can run many more steps per second.
 - A WebGPU-capable browser is required. Recent Chrome, Edge, and Safari releases
   are supported; applications should provide a fallback when `initialize()`
   cannot acquire a GPU device.

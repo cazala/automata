@@ -22,6 +22,7 @@ Example: “Warm chemical spots divide slowly across a dark field, with drag-to-
 - `Lenia`: soft continuous growth with creature-like islands.
 - `Pokemon`: stable colored domains with active competitive borders.
 - `Life`: crisp binary birth/survival structures.
+- `LargerThanLife`: broad growth fronts, islands, and multistate refractory trails.
 - `Elementary`: one-dimensional fractal histories.
 - `BriansBrain`: moving heads with refractory trails.
 - `Cyclic`: colorful wavefronts and spirals.
@@ -37,6 +38,7 @@ The seed is part of the artwork, not boilerplate:
 - Use Lenia's continuous blob seed.
 - Keep Pokémon's coherent Voronoi regions.
 - Use each `Life.PRESETS` density.
+- Use each `LargerThanLife.PRESETS` density and lower step rates as radius grows.
 - Let Elementary plant the top-center cell.
 
 Call `engine.reset(seedOptions)` after initialization. Avoid replacing a specialized seed with `randomize()`.
@@ -62,6 +64,7 @@ Watch the rule for long enough to reveal its attractor:
 - Lenia can grow, saturate, or die depending on a narrow `mu`/`sigma` region.
 - Pokémon changes only at domain borders.
 - Sparse Life presets need time to branch.
+- Larger-than-Life rules need enough generations to form neighborhood-scale fronts.
 
 Change one parameter at a time. Prefer typed setters or `automaton.set(name, value)`. Keep structural values fixed during live tuning.
 
@@ -79,7 +82,7 @@ Use contrast to reveal low-amplitude growth without crushing the entire field in
 
 Good interactions:
 
-- erase with `fillCircle(...)` for Neural, Lenia, or Life;
+- erase with `fillCircle(...)` for Neural, Lenia, Life, or Larger than Life;
 - restore `[1, 0]` with `fillCircle(...)` for ReactionDiffusion;
 - pan and zoom for Pokémon or Cyclic, where arbitrary cell edits need valid encoded channels;
 - single-step controls for Life, Elementary, and custom-rule debugging;

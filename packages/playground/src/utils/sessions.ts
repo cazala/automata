@@ -1,6 +1,6 @@
 import { sanitizeConfig, type ConfigState } from "../store/configSlice";
 
-export const SESSION_VERSION = 2;
+export const SESSION_VERSION = 3;
 const INDEX_KEY = "automata-sessions-index";
 const SESSION_PREFIX = "automata-session-";
 

@@ -73,6 +73,7 @@ Copy [the full Vite starter](assets/starter/) when building a new app. It includ
 | Soft continuous organisms | `Lenia`; keep its tuned seed and low step rate |
 | Competing colored domains | `Pokemon`; preserve its Voronoi seed |
 | Conway or life-like binary patterns | `Life`; convert a preset's counts with `countsToMask` |
+| Wide-neighborhood growth or refractory trails | `LargerThanLife`; start from a named preset |
 | Fractal row-by-row history | `Elementary` with a rule from `Elementary.PRESETS` |
 | Electric glider storms | `BriansBrain` |
 | Rotating rainbow spirals | `Cyclic` |
@@ -98,7 +99,7 @@ Read [creative-workflow.md](references/creative-workflow.md) before inventing or
 - Treat Gray-Scott's idle state as `[1, 0]`; filling it with `[0, 0]` creates inert cells.
 - Use preset-specific seed options: `Neural.applyPreset(name)` returns them, while `ReactionDiffusion.applyPreset(name)` only changes parameters.
 - Update declared values with `automaton.set(...)` or typed setters; they are clamped realtime uniform writes.
-- Treat channel count, neural mode/hidden size, and Lenia radius as structural changes. Do not animate them per frame.
+- Treat channel count, neural mode/hidden size, Lenia radius, and Larger-than-Life radius as structural changes. Do not animate them per frame.
 - Preserve automaton render hints unless intentionally overriding `colorMode`.
 
 ## Preserve WebGPU performance
@@ -108,6 +109,7 @@ Read [creative-workflow.md](references/creative-workflow.md) before inventing or
 - Increase `cellSize` to reduce grid dimensions before weakening the rule.
 - Treat `getCells()` as a full GPU-to-CPU readback. Never call it in animation, pointer-move, or render loops.
 - Keep Lenia's radius modest; its neighborhood work scales approximately with the square of the diameter.
+- Keep Larger-than-Life radii modest too; every cell reads `(2R + 1)² - 1` neighbors per step.
 - Use `ensureGridCovers()` after programmatic zoom or pan, and set a deliberate `maxCells` ceiling.
 - Use the rule's recommended simulation rate as a starting point; simulation steps are decoupled from display FPS.
 

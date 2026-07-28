@@ -1,10 +1,10 @@
 # @cazala/automata
 
-A library for building cellular automata simulations with WebGPU. Six built-in
-automata — neural CA (worms), Gray-Scott reaction-diffusion, Lenia, a pokemon
-type-battle CA, life-like rules, and elementary (Wolfram) rules — plus a small
-framework for writing your own rule in a few lines of WGSL. Framework-agnostic,
-zero dependencies, WebGPU-only.
+A library for building cellular automata simulations with WebGPU. Built-in
+rules cover neural CA, Gray-Scott reaction-diffusion, Lenia, Pokemon type
+battles, classic and Larger-than-Life rules, elementary rules, Brian's Brain,
+and cyclic automata, plus a small framework for writing your own rule in a few
+lines of WGSL. Framework-agnostic, zero dependencies, WebGPU-only.
 
 ```bash
 npm install @cazala/automata
@@ -59,6 +59,7 @@ params with ranges, render hints, seeding). Two kinds of change:
 | `Lenia` | continuous Life: ring kernel + gaussian growth | radius, mu, sigma |
 | `Pokemon` | 18-type battle CA over the real type chart | threshold, regionSize |
 | `Life` | any life-like rule via birth/survival masks | see `Life.PRESETS` |
+| `LargerThanLife` | large-radius, range-based Life with refractory states | radius, states, birth/survival ranges |
 | `Elementary` | Wolfram rules 0-255, drawn row by row | rule |
 | `BriansBrain` | 3-state glider storm | birth |
 | `Cyclic` | rock-paper-scissors spirals | states, threshold |

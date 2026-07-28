@@ -1,10 +1,17 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import {
   Life,
+  LargerThanLife,
+  largerThanLifeNeighborCount,
+  LARGER_THAN_LIFE_MAX_RADIUS,
+  LARGER_THAN_LIFE_MAX_STATES,
+  LARGER_THAN_LIFE_MIN_RADIUS,
+  LARGER_THAN_LIFE_MIN_STATES,
   POKEMON_TYPE_COUNT,
   WORMS_GAUSS_WIDTH,
   WORMS_KERNEL,
   type LifePreset,
+  type LargerThanLifePreset,
 } from "@cazala/automata";
 
 /** Activation ids, matching the Neural automaton's `activation` param. */
@@ -39,9 +46,18 @@ export type AutomatonType =
   | "rd"
   | "lenia";
 
+export type LifeRuleMode = "classic" | "larger";
+
 export interface LifeConfig {
+  mode: LifeRuleMode;
   birth: number;
   survival: number;
+  radius: number;
+  states: number;
+  birthMin: number;
+  birthMax: number;
+  survivalMin: number;
+  survivalMax: number;
 }
 
 export interface ElementaryConfig {
@@ -124,10 +140,16 @@ export interface ConfigState {
   stepsPerSecond: number;
 }
 
-export type { LifePreset };
+export type { LifePreset, LargerThanLifePreset };
 
 /** Named life rules with per-preset soup densities (from the core library). */
 export const LIFE_PRESETS: Record<string, LifePreset> = Life.PRESETS;
+
+/** Expanded-neighborhood rules surfaced under Life in the playground. */
+export const EXPANDED_LIFE_PRESETS: Record<string, LargerThanLifePreset> = {
+  bosco: LargerThanLife.PRESETS.bosco,
+  majority: LargerThanLife.PRESETS.majority,
+};
 
 // Conway B3/S23 masks.
 const B3 = 1 << 3;
@@ -136,7 +158,17 @@ const S23 = (1 << 2) | (1 << 3);
 // Boot into the "neural worms" rule: direct conv -> inverted gaussian.
 export const defaultConfig: ConfigState = {
   type: "neural",
-  life: { birth: B3, survival: S23 },
+  life: {
+    mode: "classic",
+    birth: B3,
+    survival: S23,
+    radius: 5,
+    states: 2,
+    birthMin: 34,
+    birthMax: 45,
+    survivalMin: 33,
+    survivalMax: 57,
+  },
   elementary: { rule: 30 },
   neural: {
     mode: "direct",
@@ -195,7 +227,7 @@ function countsToMaskLocal(counts: number[]): number {
   return counts.reduce((mask, n) => mask | (1 << n), 0);
 }
 
-function lifePresetForConfig(life: LifeConfig): LifePreset | undefined {
+function classicLifePresetForConfig(life: LifeConfig): LifePreset | undefined {
   return Object.values(LIFE_PRESETS).find(
     (preset) =>
       countsToMaskLocal(preset.birth) === life.birth &&
@@ -203,15 +235,43 @@ function lifePresetForConfig(life: LifeConfig): LifePreset | undefined {
   );
 }
 
-function defaultInitForType(type: AutomatonType, life: LifeConfig): InitConfig {
+function expandedLifePresetForConfig(
+  rule: LifeConfig
+): LargerThanLifePreset | undefined {
+  return Object.values(EXPANDED_LIFE_PRESETS).find(
+    (preset) =>
+      preset.radius === rule.radius &&
+      preset.states === rule.states &&
+      preset.birth.min === rule.birthMin &&
+      preset.birth.max === rule.birthMax &&
+      preset.survival.min === rule.survivalMin &&
+      preset.survival.max === rule.survivalMax
+  );
+}
+
+function defaultInitForType(
+  type: AutomatonType,
+  life: LifeConfig
+): InitConfig {
   if (type === "lenia") return { mode: "random", density: 1 };
   if (type === "life") {
     return {
       mode: "random",
-      density: lifePresetForConfig(life)?.density ?? LIFE_PRESETS.conway.density,
+      density:
+        life.mode === "larger"
+          ? expandedLifePresetForConfig(life)?.density ??
+            EXPANDED_LIFE_PRESETS.bosco.density
+          : classicLifePresetForConfig(life)?.density ??
+            LIFE_PRESETS.conway.density,
     };
   }
   return { ...defaultConfig.init };
+}
+
+function defaultStepsForConfig(type: AutomatonType, life: LifeConfig): number {
+  return type === "life" && life.mode === "larger"
+    ? LargerThanLife.recommendedStepsPerSecond
+    : defaultStepsPerSecond(type);
 }
 
 function constrainNeural(neural: NeuralConfig): void {
@@ -247,16 +307,83 @@ function constrainLenia(lenia: LeniaConfig): void {
   lenia.dt = 0.1;
 }
 
+function constrainLife(rule: LifeConfig): void {
+  rule.mode = rule.mode === "larger" ? "larger" : "classic";
+  rule.radius = Math.round(
+    clamp(
+      finite(rule.radius, defaultConfig.life.radius),
+      LARGER_THAN_LIFE_MIN_RADIUS,
+      LARGER_THAN_LIFE_MAX_RADIUS
+    )
+  );
+  rule.states = Math.round(
+    clamp(
+      finite(rule.states, defaultConfig.life.states),
+      LARGER_THAN_LIFE_MIN_STATES,
+      LARGER_THAN_LIFE_MAX_STATES
+    )
+  );
+
+  const maxNeighbors = largerThanLifeNeighborCount(rule.radius);
+  const normalizeRange = (
+    minValue: unknown,
+    maxValue: unknown,
+    fallbackMin: number,
+    fallbackMax: number
+  ): [number, number] => {
+    const a = Math.round(clamp(finite(minValue, fallbackMin), 0, maxNeighbors));
+    const b = Math.round(clamp(finite(maxValue, fallbackMax), 0, maxNeighbors));
+    return [Math.min(a, b), Math.max(a, b)];
+  };
+
+  [rule.birthMin, rule.birthMax] = normalizeRange(
+    rule.birthMin,
+    rule.birthMax,
+    defaultConfig.life.birthMin,
+    defaultConfig.life.birthMax
+  );
+  [rule.survivalMin, rule.survivalMax] = normalizeRange(
+    rule.survivalMin,
+    rule.survivalMax,
+    defaultConfig.life.survivalMin,
+    defaultConfig.life.survivalMax
+  );
+}
+
+interface LegacyLargerThanLifeConfig {
+  radius: number;
+  states: number;
+  birthMin: number;
+  birthMax: number;
+  survivalMin: number;
+  survivalMax: number;
+}
+
+type ConfigInput = Omit<Partial<ConfigState>, "type" | "life"> & {
+  type?: unknown;
+  life?: Partial<LifeConfig>;
+  largerLife?: Partial<LegacyLargerThanLifeConfig>;
+};
+
 export function sanitizeConfig(
-  input: (Partial<ConfigState> & { type?: unknown }) = {}
+  input: ConfigInput = {}
 ): ConfigState {
-  const type = isAutomatonType(input.type) ? input.type : defaultConfig.type;
+  const legacyExpandedLife = input.type === "largerLife";
+  const type = legacyExpandedLife
+    ? "life"
+    : isAutomatonType(input.type)
+      ? input.type
+      : defaultConfig.type;
   const life = { ...defaultConfig.life, ...input.life };
+  if (legacyExpandedLife) {
+    Object.assign(life, { mode: "larger", ...input.largerLife });
+  }
+  constrainLife(life);
   const rawSteps = input.stepsPerSecond;
   const stepsPerSecond =
     typeof rawSteps === "number" && Number.isFinite(rawSteps)
       ? clamp(rawSteps, 1, maxStepsPerSecond(type))
-      : defaultStepsPerSecond(type);
+      : defaultStepsForConfig(type, life);
 
   const next: ConfigState = {
     type,
@@ -285,13 +412,18 @@ const configSlice = createSlice({
   reducers: {
     setType(state, action: PayloadAction<AutomatonType>) {
       state.type = action.payload;
-      state.stepsPerSecond = defaultStepsPerSecond(action.payload);
+      state.stepsPerSecond = defaultStepsForConfig(action.payload, state.life);
       const init = defaultInitForType(action.payload, state.life);
       state.init.mode = init.mode;
       state.init.density = init.density;
     },
     setLife(state, action: PayloadAction<Partial<LifeConfig>>) {
+      const previousMode = state.life.mode;
       Object.assign(state.life, action.payload);
+      constrainLife(state.life);
+      if (state.type === "life" && state.life.mode !== previousMode) {
+        state.stepsPerSecond = defaultStepsForConfig(state.type, state.life);
+      }
     },
     setElementaryRule(state, action: PayloadAction<number>) {
       state.elementary.rule = action.payload;

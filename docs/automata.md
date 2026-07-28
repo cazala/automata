@@ -143,6 +143,48 @@ Any life-like rule via 9-bit birth/survival masks (`countsToMask([3])` etc.).
 
 ---
 
+## Larger than Life (`LargerThanLife`)
+
+The range-based, multistate generalization of Life. Radius `R` samples a square
+Moore neighborhood of `(2R + 1)² - 1` cells; the center cell is excluded.
+Birth and survival are inclusive neighbor-count ranges rather than 9-bit masks.
+
+The rule uses one normalized channel. A value of `1` is alive, `0` is ready and
+dead, and `states - 2` intermediate values form a visible refractory cooldown.
+Only fully live cells contribute to neighbor counts, and a refractory cell must
+cool to zero before it can be born again.
+
+| Setting | Default | Range | Notes |
+| --- | --- | --- | --- |
+| `radius` | 5 | 1-12 | *structural*; cost scales with neighborhood area |
+| `states` | 2 | 2-32 | 2 is binary; additional states add cooldown steps |
+| `birth` | 34-45 | 0 to max neighbors | inclusive range |
+| `survival` | 33-57 | 0 to max neighbors | inclusive range |
+
+**Presets** (`LargerThanLife.PRESETS`): `bosco`, `boscoTrails` (six-state
+refractory variant), `majority`, `waffle`, and `glowingCoral` (eight states).
+Each includes a suitable random-soup density.
+
+```ts
+const preset = LargerThanLife.PRESETS.bosco;
+const automaton = new LargerThanLife(preset);
+const engine = new Engine({
+  canvas,
+  automaton,
+  stepsPerSecond: LargerThanLife.recommendedStepsPerSecond,
+});
+await engine.initialize();
+engine.reset({ mode: "random", density: preset.density });
+engine.play();
+```
+
+Use `setRadius()` for structural radius changes, and `setStates()`,
+`setBirthRange()`, or `setSurvivalRange()` for realtime uniform changes. Wide
+neighborhoods are substantially more expensive than classic Life, so increase
+cell size or lower the simulation rate as radius grows.
+
+---
+
 ## Elementary (`Elementary`)
 
 Wolfram rules 0-255 drawn row-by-row: the grid is a scrolling history, the

@@ -5,7 +5,7 @@ import "./Canvas.css";
 
 /**
  * What a primary click/touch drag does, per automaton:
- *  - erase: clear a circular brush of cells (neural, reaction, lenia, life)
+ *  - erase: clear a circular brush (neural, reaction, lenia, life, larger life)
  *  - pan:   move the camera (pokemon — cell surgery would just get eaten by
  *           the battle rule, so the gesture is better spent navigating)
  *  - none:  inert (elementary — the row-by-row history isn't editable)
