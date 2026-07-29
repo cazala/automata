@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Neural network weights WebGPU smoke test</title>
+<style>
+  body { font-family: system-ui, sans-serif; }
+  canvas { width: 64px; height: 64px; }
+  output { display: block; white-space: pre-wrap; }
+</style>
+<h1>Neural network weights WebGPU smoke test</h1>
+<output id="result">running</output>
+<canvas width="64" height="64"></canvas>
+<script type="module">
+  import { Engine, Neural } from "@cazala/automata";
+
+  const output = document.querySelector("#result");
+  const canvas = document.querySelector("canvas");
+  const channels = 2;
+  const hidden = 3;
+  const zeros = {
+    channels,
+    hidden,
+    inputToHidden: new Float32Array(hidden * channels * 4),
+    hiddenBias: new Float32Array(hidden),
+    hiddenToOutput: new Float32Array(channels * hidden),
+    outputBias: new Float32Array(channels),
+  };
+  const errors = [];
+  const neural = new Neural({
+    mode: "network",
+    channels,
+    hidden,
+    updateRate: 1,
+    stepSize: .1,
+    weights: zeros,
+  });
+  const engine = new Engine({
+    canvas,
+    automaton: neural,
+    grid: { width: 8, height: 8, wrap: true },
+    onError(error) {
+      errors.push(error.message);
+    },
+  });
+
+  try {
+    await engine.initialize();
+    engine.setCells(new Float32Array(8 * 8 * channels));
+    neural.setNetworkWeights({
+      ...zeros,
+      outputBias: [.5, -.25],
+    });
+    engine.step();
+    const cells = await engine.getCells();
+    const expected = [.05, -.025];
+    const passed = cells.every((value, index) =>
+      Math.abs(value - expected[index % channels]) < 1e-6
+    );
+    output.textContent = JSON.stringify({
+      errors,
+      firstCell: Array.from(cells.slice(0, channels)),
+      passed,
+    });
+    output.dataset.status = passed && errors.length === 0 ? "passed" : "failed";
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+    output.dataset.status = "failed";
+  } finally {
+    engine.destroy();
+  }
+</script>
+</html>

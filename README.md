@@ -98,7 +98,7 @@ keep a CSS or static-image fallback.
 
 | Class | System | Highlights |
 | --- | --- | --- |
-| `Neural` | Convolutional neural CA or an untrained random-MLP substrate | Worms, mitosis, mosaic, and network presets |
+| `Neural` | Convolutional neural CA or an injectable two-layer MLP substrate | Worms, mitosis, mosaic, trained weights, and network presets |
 | `ReactionDiffusion` | Gray-Scott two-chemical model | Coral, mitosis, solitons, worms, and waves |
 | `Lenia` | Continuous Life with a radial kernel and growth function | Realtime `mu`, `sigma`, and `dt`; structural radius |
 | `Pokemon` | 18-type battle CA using the type-effectiveness chart | Coherent domains and adjustable battle threshold |
@@ -149,6 +149,31 @@ const decay = createAutomaton({
 
 The [custom automata guide](./docs/custom-automata.md) documents shader helpers,
 parameters, storage buffers, render hints, seeding, and debugging.
+
+### Trained neural CA weights
+
+`Neural` network mode can load a complete two-layer MLP:
+
+```ts
+const neural = new Neural({
+  mode: "network",
+  activation: 1, // tanh
+  weights: {
+    channels,
+    hidden,
+    inputToHidden,
+    hiddenBias,
+    hiddenToOutput,
+    outputBias,
+  },
+});
+```
+
+The artifact uses row-major `[hidden][channels × 4]` and
+`[channels][hidden]` matrices. Call `setNetworkWeights(...)` to replace
+same-shape GPU weights without rebuilding, and `getNetworkWeights()` for a
+deep-copying snapshot. The [Neural catalog](./docs/automata.md#injecting-trained-network-weights)
+documents validation, perception ordering, and serialization.
 
 ## Development
 

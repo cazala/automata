@@ -34,6 +34,10 @@ irrelevant. CPU-side writes (`setCells`, `fillCircle`, seeding) target the
 - **Realtime**: `automaton.set(name, v)` → engine packs all param values into
   the params uniform (`packParams`) and writes it. Next dispatch sees it. This
   is why dragging sliders is free.
+- **Same-shape storage**: an automaton's protected `updateStorage(name, data)`
+  hook writes an existing storage buffer in place. Neural uses this for
+  `setNetworkWeights(...)`, so swapping a trained MLP does not rebuild the
+  shader or bind groups.
 - **Structural** (`rebuild()`): automaton swap, grid resize, channel change,
   or `requestRebuild()` from an automaton (e.g. Lenia radius). Reallocates
   cell buffers if the size changed, recreates storages, recompiles the

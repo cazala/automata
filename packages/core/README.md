@@ -54,7 +54,7 @@ params with ranges, render hints, seeding). Two kinds of change:
 
 | Class | The idea | Highlight params |
 | --- | --- | --- |
-| `Neural` | conv3x3 → activation per channel ("worms"), or a random-MLP substrate | kernel, gaussWidth, activation |
+| `Neural` | conv3x3 → activation per channel ("worms"), or an injectable two-layer MLP | kernel, gaussWidth, activation |
 | `ReactionDiffusion` | Gray-Scott two-chemical model | feed, kill (see `PRESETS`) |
 | `Lenia` | continuous Life: ring kernel + gaussian growth | radius, mu, sigma |
 | `Pokemon` | 18-type battle CA over the real type chart | threshold, regionSize |
@@ -84,6 +84,34 @@ tuning notes: [docs/automata.md](https://github.com/cazala/automata/blob/main/do
 - **Errors**: pass `onError` in `EngineOptions` — shader compile and pipeline
   validation errors are reported there (default `console.error`) instead of
   failing silently.
+
+## Injecting Neural network weights
+
+`Neural` network mode accepts trained two-layer MLP weights at construction or
+through a live setter:
+
+```ts
+const neural = new Neural({
+  mode: "network",
+  activation: 1,
+  weights: {
+    channels,
+    hidden,
+    inputToHidden,  // row-major [hidden][channels * 4]
+    hiddenBias,
+    hiddenToOutput, // row-major [channels][hidden]
+    outputBias,
+  },
+});
+
+neural.setNetworkWeights(nextWeights); // same shape, no shader rebuild
+const snapshot = neural.getNetworkWeights(); // deep-copying Float32Arrays
+```
+
+Perception inputs are ordered as identity, Sobel-x, Sobel-y, and symmetric
+kernel blocks. The hidden layer uses the selected Neural activation; the output
+layer is linear and becomes a `stepSize`-scaled residual update. Arrays are
+validated, copied, and converted to f32.
 
 ## Custom automata
 

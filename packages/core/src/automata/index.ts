@@ -16,7 +16,15 @@ export type {
 export { Elementary } from "./elementary";
 export type { ElementaryOptions } from "./elementary";
 export { Neural, WORMS_KERNEL, WORMS_GAUSS_WIDTH } from "./neural";
-export type { NeuralOptions, NeuralPreset, Activation, NeuralMode, Kernel } from "./neural";
+export type {
+  NeuralOptions,
+  NeuralPreset,
+  NeuralNetworkWeights,
+  NeuralNetworkWeightsSnapshot,
+  Activation,
+  NeuralMode,
+  Kernel,
+} from "./neural";
 export { Pokemon, POKEMON_TYPES, POKEMON_TYPE_COUNT } from "./pokemon";
 export type { PokemonOptions, PokemonTypeInfo } from "./pokemon";
 export { ReactionDiffusion } from "./reaction-diffusion";

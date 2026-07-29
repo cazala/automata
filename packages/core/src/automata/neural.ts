@@ -20,8 +20,9 @@
  *
  * Mode, channel count C and hidden size H are baked into the generated WGSL, so
  * changing them (or reseeding) regenerates the weights and triggers a rebuild.
- * Everything else (activation, kernel, updateRate, stepSize, aliveMask) is a
- * realtime uniform.
+ * Same-shape network weights can be injected without rebuilding. Everything
+ * else (activation, kernel, updateRate, stepSize, aliveMask) is a realtime
+ * uniform.
  */
 
 import {
@@ -43,6 +44,32 @@ export interface Kernel {
   corner: number;
 }
 
+/**
+ * Serializable two-layer MLP weights for Neural network mode.
+ *
+ * `inputToHidden` is row-major `[hidden][channels * 4]`; the four perception
+ * blocks are identity, Sobel-x, Sobel-y, and the symmetric kernel.
+ * `hiddenToOutput` is row-major `[channels][hidden]`.
+ */
+export interface NeuralNetworkWeights {
+  channels: number;
+  hidden: number;
+  inputToHidden: ArrayLike<number>;
+  hiddenBias: ArrayLike<number>;
+  hiddenToOutput: ArrayLike<number>;
+  outputBias: ArrayLike<number>;
+}
+
+/** Copy-owned form returned by `getNetworkWeights()`. */
+export interface NeuralNetworkWeightsSnapshot {
+  channels: number;
+  hidden: number;
+  inputToHidden: Float32Array;
+  hiddenBias: Float32Array;
+  hiddenToOutput: Float32Array;
+  outputBias: Float32Array;
+}
+
 /** The kernel + activation that produce the classic "worms" rule in direct mode. */
 export const WORMS_KERNEL: Kernel = { center: -0.66, edge: -0.9, corner: 0.68 };
 export const WORMS_GAUSS_WIDTH = 0.6;
@@ -61,6 +88,8 @@ export interface NeuralOptions {
   aliveMask?: boolean;
   gaussWidth?: number;
   kernel?: Partial<Kernel>;
+  /** Pretrained network-mode weights. Channels/hidden default to this artifact's shape. */
+  weights?: NeuralNetworkWeights;
 }
 
 export interface NeuralPreset {
@@ -146,8 +175,14 @@ export class Neural extends Automaton {
   constructor(options: NeuralOptions = {}) {
     super(Neural.PARAMS);
     this.mode = options.mode ?? "direct";
-    this.C = Math.max(1, Math.min(16, Math.floor(options.channels ?? 6)));
-    this.H = Math.max(1, Math.min(64, Math.floor(options.hidden ?? 32)));
+    this.C = Math.max(
+      1,
+      Math.min(16, Math.floor(options.channels ?? options.weights?.channels ?? 6))
+    );
+    this.H = Math.max(
+      1,
+      Math.min(64, Math.floor(options.hidden ?? options.weights?.hidden ?? 32))
+    );
     this.rngSeed = options.seed ?? (Math.random() * 1e9) | 0;
     this.configure(options);
     if (options.aliveMask !== undefined) this.set("aliveMask", options.aliveMask ? 1 : 0);
@@ -155,6 +190,7 @@ export class Neural extends Automaton {
     if (options.kernel?.edge !== undefined) this.set("kEdge", options.kernel.edge);
     if (options.kernel?.corner !== undefined) this.set("kCorner", options.kernel.corner);
     this.generateWeights();
+    if (options.weights) this.setNetworkWeights(options.weights);
   }
 
   /** Apply a named preset (mode + realtime values). Returns its seed options. */
@@ -367,6 +403,60 @@ fn activate(v: f32) -> f32 {
     return this.rngSeed;
   }
 
+  // ---- network storage ------------------------------------------------------
+
+  /**
+   * Replace the network-mode MLP weights.
+   *
+   * The artifact must match the current channel and hidden dimensions. Values
+   * are copied into f32 storage and must remain finite after conversion. When
+   * attached to an initialized engine, all four GPU buffers update in place
+   * without rebuilding the compute pipeline.
+   */
+  setNetworkWeights(weights: NeuralNetworkWeights): void {
+    if (weights.channels !== this.C || weights.hidden !== this.H) {
+      throw new RangeError(
+        `Neural network weights target ${weights.channels} channels and ` +
+          `${weights.hidden} hidden units; expected ${this.C} and ${this.H}`
+      );
+    }
+
+    const perception = this.C * FILTERS;
+    const w1 = Neural.copyWeightArray(
+      "inputToHidden",
+      weights.inputToHidden,
+      this.H * perception
+    );
+    const b1 = Neural.copyWeightArray("hiddenBias", weights.hiddenBias, this.H);
+    const w2 = Neural.copyWeightArray(
+      "hiddenToOutput",
+      weights.hiddenToOutput,
+      this.C * this.H
+    );
+    const b2 = Neural.copyWeightArray("outputBias", weights.outputBias, this.C);
+
+    this.w1 = w1;
+    this.b1 = b1;
+    this.w2 = w2;
+    this.b2 = b2;
+    this.updateStorage("weights1", this.w1);
+    this.updateStorage("bias1", this.b1);
+    this.updateStorage("weights2", this.w2);
+    this.updateStorage("bias2", this.b2);
+  }
+
+  /** Return a deep copy suitable for serialization or another Neural instance. */
+  getNetworkWeights(): NeuralNetworkWeightsSnapshot {
+    return {
+      channels: this.C,
+      hidden: this.H,
+      inputToHidden: this.w1.slice(),
+      hiddenBias: this.b1.slice(),
+      hiddenToOutput: this.w2.slice(),
+      outputBias: this.b2.slice(),
+    };
+  }
+
   // ---- realtime params ------------------------------------------------------
 
   setActivation(a: Activation): void {
@@ -422,5 +512,29 @@ fn activate(v: f32) -> f32 {
       edge: this.get("kEdge"),
       corner: this.get("kCorner"),
     };
+  }
+
+  private static copyWeightArray(
+    name: string,
+    values: ArrayLike<number>,
+    expectedLength: number
+  ): Float32Array {
+    if (values.length !== expectedLength) {
+      throw new RangeError(
+        `Neural ${name} has length ${values.length}; expected ${expectedLength}`
+      );
+    }
+    const copy = new Float32Array(expectedLength);
+    for (let index = 0; index < expectedLength; index++) {
+      const value = Number(values[index]);
+      if (!Number.isFinite(value)) {
+        throw new TypeError(`Neural ${name}[${index}] must be finite`);
+      }
+      copy[index] = value;
+      if (!Number.isFinite(copy[index])) {
+        throw new RangeError(`Neural ${name}[${index}] is outside the f32 range`);
+      }
+    }
+    return copy;
   }
 }
