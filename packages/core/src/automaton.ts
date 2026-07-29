@@ -14,9 +14,10 @@
  *  - `render`     hints for the built-in renderer (color mode, palette inversion)
  *  - `seed()`     an initial grid state the rule actually develops well from
  *
- * The engine attaches a param writer and a rebuild callback so automata can push
- * realtime tweaks (`set`) or request a structural rebuild (`requestRebuild`, e.g.
- * a neural channel-count change).
+ * The engine attaches param/storage writers and a rebuild callback so automata
+ * can push realtime tweaks (`set`), replace same-shape storage data
+ * (`updateStorage`), or request a structural rebuild (`requestRebuild`, e.g. a
+ * neural channel-count change).
  *
  * To create a custom automaton, either subclass Automaton (see any file in
  * ./automata) or wrap a plain descriptor with `createAutomaton()`.
@@ -99,6 +100,9 @@ export abstract class Automaton {
 
   private _onParam: ((name: string) => void) | null = null;
   private _onRebuild: (() => void) | null = null;
+  private _onStorage:
+    | ((name: string, data: Float32Array) => void)
+    | null = null;
 
   constructor(paramSpecs: ParamSpec[] = []) {
     this.paramSpecs = paramSpecs;
@@ -141,14 +145,20 @@ export abstract class Automaton {
   }
 
   /** Engine wiring. */
-  attach(onParam: (name: string) => void, onRebuild: () => void): void {
+  attach(
+    onParam: (name: string) => void,
+    onRebuild: () => void,
+    onStorage?: (name: string, data: Float32Array) => void
+  ): void {
     this._onParam = onParam;
     this._onRebuild = onRebuild;
+    this._onStorage = onStorage ?? null;
   }
 
   detach(): void {
     this._onParam = null;
     this._onRebuild = null;
+    this._onStorage = null;
   }
 
   /** Read a live param value. */
@@ -186,6 +196,15 @@ export abstract class Automaton {
   /** Ask the engine to rebuild pipelines/buffers (structural change). */
   protected requestRebuild(): void {
     this._onRebuild?.();
+  }
+
+  /**
+   * Replace a same-shape storage buffer without rebuilding the shader or bind
+   * groups. Calls made before engine attachment are intentionally no-ops: the
+   * next build reads the automaton's current storage arrays.
+   */
+  protected updateStorage(name: string, data: Float32Array): void {
+    this._onStorage?.(name, data);
   }
 }
 

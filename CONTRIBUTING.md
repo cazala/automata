@@ -23,10 +23,12 @@ inside `packages/core`).
 | `pnpm build` | Build core, playground, then static documentation |
 | `pnpm build:core` | Rollup build of the library into `packages/core/dist` |
 | `pnpm build:docs` | Build docs into `packages/playground/dist/docs` |
+| `pnpm test` | Build the core package and run its Node API tests |
 | `pnpm type-check` | Build core + `tsc --noEmit` on the playground |
 
-There is no test suite; verification is done by driving the playground in a
-real browser (see "Verifying changes" below).
+Core API behavior has focused Node tests. Visual and GPU behavior is also
+verified by driving the playground in a real browser (see "Verifying changes"
+below).
 
 ## Repo layout
 
@@ -66,6 +68,11 @@ frozen. Beyond that, the effective verification loop used for everything in
 this repo is empirical: run the playground, switch to the affected automaton,
 and confirm the behavior (readbacks via `engine.getCells()` from the console
 are handy for measuring rather than eyeballing).
+
+After changing Neural network storage, run `pnpm dev` and open
+`http://localhost:3000/test/neural-network-weights-smoke.html`. It injects
+weights after engine initialization, advances one generation, and verifies the
+GPU readback.
 
 ## Style
 

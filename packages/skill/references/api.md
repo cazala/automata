@@ -139,6 +139,37 @@ Structural values rebuild pipelines or buffers:
 
 Do not drive structural setters from animation or pointer loops.
 
+Neural network mode can replace a same-shape trained MLP without rebuilding:
+
+```ts
+const neural = new Neural({
+  mode: "network",
+  activation: 1,
+  channels,
+  hidden,
+});
+
+neural.setNetworkWeights({
+  channels,
+  hidden,
+  inputToHidden,  // row-major [hidden][channels * 4]
+  hiddenBias,     // [hidden]
+  hiddenToOutput, // row-major [channels][hidden]
+  outputBias,     // [channels]
+});
+
+const snapshot = neural.getNetworkWeights();
+```
+
+The four perception blocks are identity, Sobel-x, Sobel-y, and the symmetric
+kernel. The hidden layer applies the selected activation; the output layer is
+linear and becomes a `stepSize`-scaled residual update under the `updateRate`
+mask. The setter accepts arrays or typed arrays, validates and copies f32 values,
+and updates attached GPU storage buffers in place. The constructor also accepts
+`weights` and derives `channels`/`hidden` from it when those options are omitted.
+Snapshot arrays are deep copies; convert them with `Array.from(...)` for JSON
+serialization.
+
 Use `engine.setAutomaton(next)` to swap rules. Then choose the new simulation rate, reset the state, and usually recenter or cover the grid:
 
 ```ts

@@ -20,9 +20,9 @@ Neural cellular automata with two substrates, chosen by `mode`:
   inverted-gaussian activation `1 - 2^(-w·v²)` and the default kernel this is
   the classic **worms** rule.
 - **`"network"`** — Growing-NCA-style: 4 perception filters (identity,
-  Sobel-x/y, the kernel) feed a 2-layer random-weight MLP applied as a
-  residual update under a stochastic per-cell mask. Reseedable
-  (`reseed(seed)`), untrained by design — a generator of alien textures.
+  Sobel-x/y, the kernel) feed a 2-layer MLP applied as a residual update under
+  a stochastic per-cell mask. Its weights are random and reseedable by default,
+  or can be injected from a trained model with `setNetworkWeights(...)`.
 
 | Param | Default | Range | Notes |
 | --- | --- | --- | --- |
@@ -36,6 +36,66 @@ Neural cellular automata with two substrates, chosen by `mode`:
 **Presets** (`Neural.PRESETS`, apply via `applyPreset(name)` which returns the
 matching seed options): `worms`, `mitosis` (dividing blobs), `mosaic`
 (checkered color domains), `network`.
+
+### Injecting trained network weights
+
+Network mode exposes its complete MLP as a serializable artifact:
+
+```ts
+import {
+  Neural,
+  type NeuralNetworkWeights,
+} from "@cazala/automata";
+
+const trained: NeuralNetworkWeights = {
+  channels: 4,
+  hidden: 32,
+  inputToHidden, // 32 × (4 channels × 4 perception filters)
+  hiddenBias,    // 32
+  hiddenToOutput, // 4 channels × 32
+  outputBias,     // 4
+};
+
+const neural = new Neural({
+  mode: "network",
+  activation: 1, // tanh
+  weights: trained,
+});
+```
+
+The four perception blocks are stored in this order: identity, Sobel-x,
+Sobel-y, symmetric kernel. With `C = channels`, `H = hidden`, and `P = C × 4`:
+
+- `inputToHidden[h × P + p]` is a row-major `[H][P]` matrix.
+- `hiddenBias[h]` has length `H`.
+- `hiddenToOutput[c × H + h]` is a row-major `[C][H]` matrix.
+- `outputBias[c]` has length `C`.
+
+For each cell, network mode evaluates:
+
+```text
+perception = concat(identity[C], sobelX[C], sobelY[C], kernel[C])
+hidden[h] = activate(inputToHidden[h, :] · perception + hiddenBias[h])
+delta[c] = hiddenToOutput[c, :] · hidden + outputBias[c]
+state'[c] = clamp(state[c] + stepSize × delta[c], -1, 1)
+```
+
+The residual update occurs when the per-cell stochastic mask is below
+`updateRate`.
+
+Plain numeric arrays and typed arrays are accepted, copied, validated, and
+converted to f32. `setNetworkWeights(...)` requires the artifact dimensions to
+match the current Neural instance. On an initialized engine it replaces the
+four same-shape GPU storage buffers immediately without recompiling the shader:
+
+```ts
+neural.setNetworkWeights(nextWeights);
+const snapshot = neural.getNetworkWeights(); // deep-copying Float32Arrays
+```
+
+For JSON, serialize each snapshot array with `Array.from(...)`. Passing
+`weights` to the constructor derives `channels` and `hidden` from the artifact
+unless those options are supplied explicitly.
 
 **Seeding**: `"random"` seeds whole cells (all channels agree → renders as one
 coherent field), `"noise"` seeds channels independently (renders as overlaid

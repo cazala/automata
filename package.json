@@ -10,6 +10,7 @@
     "build:playground": "pnpm --filter=@cazala/automata-playground build",
     "build:docs": "vitepress build docs",
     "dev:docs": "vitepress dev docs",
+    "test": "pnpm --filter=@cazala/automata test",
     "type-check": "pnpm --filter=@cazala/automata build && pnpm --filter=@cazala/automata-playground type-check"
   },
   "devDependencies": {

@@ -184,7 +184,8 @@ export class Engine {
 
     this.automaton.attach(
       (name) => this.flushParam(name),
-      () => this.rebuild()
+      () => this.rebuild(),
+      (name, data) => this.updateStorage(name, data)
     );
 
     this.resizeCanvas();
@@ -362,7 +363,8 @@ export class Engine {
     if (this.device) {
       this.automaton.attach(
         (name) => this.flushParam(name),
-        () => this.rebuild()
+        () => this.rebuild(),
+        (name, data) => this.updateStorage(name, data)
       );
       this.rebuild();
     }
