@@ -361,11 +361,15 @@ export function Sidebar() {
   const syncGrowingViewport = useCallback(
     (open = sheetOpen) => {
       const el = sheetRef.current;
-      if (!el || !window.matchMedia("(max-width: 768px)").matches) {
-        engine.setGrowingViewportHeight(undefined);
+      if (!el) return;
+      if (!window.matchMedia("(max-width: 768px)").matches) {
+        const containerWidth =
+          el.parentElement?.clientWidth ?? window.innerWidth;
+        engine.setGrowingViewportSize(containerWidth - el.offsetWidth);
         return;
       }
-      engine.setGrowingViewportHeight(
+      engine.setGrowingViewportSize(
+        undefined,
         open
           ? window.innerHeight - el.getBoundingClientRect().height
           : window.innerHeight - SHEET_HANDLE_PX
@@ -405,7 +409,7 @@ export function Sidebar() {
     const dy = e.clientY - d.startY;
     if (Math.abs(dy) > 6) d.moved = true;
     el.style.transform = `translateY(${clampTranslate(d, dy)}px)`;
-    engine.setGrowingViewportHeight(el.getBoundingClientRect().top);
+    engine.setGrowingViewportSize(undefined, el.getBoundingClientRect().top);
   };
 
   // A tap on the handle also produces a synthetic click a few ms after
