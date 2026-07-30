@@ -70,6 +70,7 @@ const DEFAULT_CELL_PX = 1.5;
 const REACTION_CELL_PX = 1;
 const GROWING_GRID_SIZE = 72;
 const GROWING_DAMAGE_RADIUS = 11;
+const GROWING_POINTER_DAMAGE_RADIUS = GROWING_DAMAGE_RADIUS / 2;
 const BUTTERFLY_ARTIFACT = JSON.parse(
   butterflyArtifactJson
 ) as GrowingNeuralArtifact;
@@ -347,7 +348,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
         ? [1, 0]
         : new Array(engine.getChannels()).fill(0);
     const radius = isGrowingNeural(configRef.current)
-      ? GROWING_DAMAGE_RADIUS
+      ? GROWING_POINTER_DAMAGE_RADIUS
       : ERASE_RADIUS;
     engine.fillCircle(worldX, worldY, radius, values);
   }, []);
