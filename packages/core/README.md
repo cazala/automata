@@ -55,6 +55,7 @@ params with ranges, render hints, seeding). Two kinds of change:
 | Class | The idea | Highlight params |
 | --- | --- | --- |
 | `Neural` | conv3x3 → activation per channel ("worms"), or an injectable two-layer MLP | kernel, gaussWidth, activation |
+| `GrowingNeural` | trainable Growing-NCA morphogenesis with exact pre/post life masking | fireRate, stepSize, aliveThreshold |
 | `ReactionDiffusion` | Gray-Scott two-chemical model | feed, kill (see `PRESETS`) |
 | `Lenia` | continuous Life: ring kernel + gaussian growth | radius, mu, sigma |
 | `Pokemon` | 18-type battle CA over the real type chart | threshold, regionSize |
@@ -112,6 +113,31 @@ Perception inputs are ordered as identity, Sobel-x, Sobel-y, and symmetric
 kernel blocks. The hidden layer uses the selected Neural activation; the output
 layer is linear and becomes a `stepSize`-scaled residual update. Arrays are
 validated, copied, and converted to f32.
+
+## Running a Growing Neural CA artifact
+
+```ts
+import { Engine, GrowingNeural } from "@cazala/automata";
+
+const artifact = await fetch("/models/butterfly.json").then((r) => r.json());
+const growing = GrowingNeural.fromArtifact(artifact);
+const engine = new Engine({
+  canvas,
+  automaton: growing,
+  grid: { width: 72, height: 72, wrap: false },
+  render: { colorBg: { r: 1, g: 1, b: 1, a: 1 } },
+});
+
+await engine.initialize();
+engine.coverGrid();
+engine.reset({ mode: "center" });
+engine.play();
+```
+
+The versioned artifact contains a three-filter identity/Sobel perception
+matrix, ReLU MLP weights, and the stochastic/liveness semantics. The engine
+runs the neural candidate and post-update life mask as ordered GPU phases
+within each logical generation.
 
 ## Custom automata
 

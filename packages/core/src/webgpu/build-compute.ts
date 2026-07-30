@@ -16,7 +16,11 @@
  *   sim.width/height/channels/wrap/currentRow/frame/seed
  */
 
-import type { AutomatonDescriptor, ParamSpec } from "../automaton";
+import type {
+  AutomatonDescriptor,
+  AutomatonPhase,
+  ParamSpec,
+} from "../automaton";
 
 export const SIM_STRUCT = /* wgsl */ `
 struct Sim {
@@ -40,6 +44,8 @@ export interface BuiltCompute {
   paramsBinding: number;
   /** Storage buffer name -> binding index. */
   storageBindings: Record<string, number>;
+  /** Grid-sized writable scratch buffer name -> binding index. */
+  scratchBindings: Record<string, number>;
 }
 
 function buildParamsStruct(params: ParamSpec[]): { wgsl: string; size: number } {
@@ -52,13 +58,17 @@ function buildParamsStruct(params: ParamSpec[]): { wgsl: string; size: number } 
   return { wgsl: `struct Params {\n${lines.join("\n")}\n};`, size };
 }
 
-export function buildCompute(desc: AutomatonDescriptor): BuiltCompute {
+export function buildCompute(
+  desc: AutomatonDescriptor,
+  phase?: AutomatonPhase,
+): BuiltCompute {
   const { wgsl: paramsStruct, size: paramsSize } = buildParamsStruct(desc.params);
 
   let binding = 3;
   const paramsBinding = paramsSize > 0 ? binding++ : -1;
 
   const storageBindings: Record<string, number> = {};
+  const scratchBindings: Record<string, number> = {};
   const storageDecls: string[] = [];
   for (const s of desc.storages ?? []) {
     const b = binding++;
@@ -67,10 +77,41 @@ export function buildCompute(desc: AutomatonDescriptor): BuiltCompute {
       `@group(0) @binding(${b}) var<storage, read> ${s.name}: array<f32>;`
     );
   }
+  for (const s of desc.scratch ?? []) {
+    const b = binding++;
+    scratchBindings[s.name] = b;
+    storageDecls.push(
+      `@group(0) @binding(${b}) var<storage, read_write> ${s.name}: array<f32>;`
+    );
+  }
 
   const paramsDecl =
     paramsSize > 0
       ? `@group(0) @binding(${paramsBinding}) var<uniform> params: Params;`
+      : "";
+  const retainedBindings = [
+    ...desc.params.map(
+      (param) => `    _bindingUse += f32(params.${param.name});`,
+    ),
+    ...(desc.storages ?? []).map(
+      (storage) => `    _bindingUse += ${storage.name}[0];`,
+    ),
+    ...(desc.scratch ?? []).map(
+      (scratch) => `    _bindingUse += ${scratch.name}[0];`,
+    ),
+  ];
+  const retainBindings =
+    retainedBindings.length > 0
+      ? `
+  // Keep the descriptor's bind-group layout identical across phases. WebGPU's
+  // automatic layout otherwise removes resources unused by one phase, making
+  // a common bind-group entry set invalid for that pipeline.
+  if (sim.width == 0u) {
+    var _bindingUse = 0.0;
+${retainedBindings.join("\n")}
+    dst[0] = _bindingUse;
+    return;
+  }`
       : "";
 
   const code = /* wgsl */ `
@@ -95,6 +136,11 @@ fn wrapCoord(v: i32, n: i32) -> i32 {
 }
 
 fn sampleAt(x: i32, y: i32, c: i32) -> f32 {
+  if (sim.wrap == 2u && (
+    x < 0 || y < 0 || x >= i32(sim.width) || y >= i32(sim.height)
+  )) {
+    return 0.0;
+  }
   let sx = wrapCoord(x, i32(sim.width));
   let sy = wrapCoord(y, i32(sim.height));
   return src[cellBase(sx, sy) + c];
@@ -119,19 +165,27 @@ fn rand01(seed: u32) -> f32 {
 }
 
 ${desc.globals ?? ""}
+${phase?.globals ?? ""}
 
 @compute @workgroup_size(8, 8, 1)
 fn step(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (gid.x >= sim.width || gid.y >= sim.height) {
     return;
   }
+${retainBindings}
   let x = i32(gid.x);
   let y = i32(gid.y);
-${desc.step}
+${phase?.step ?? desc.step}
 }
 `;
 
-  return { code, paramsSize, paramsBinding, storageBindings };
+  return {
+    code,
+    paramsSize,
+    paramsBinding,
+    storageBindings,
+    scratchBindings,
+  };
 }
 
 /** Pack scalar param values into an ArrayBuffer matching the generated Params struct. */

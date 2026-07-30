@@ -52,6 +52,7 @@ Use `isInitialized()`, `play()`, `pause()`, `toggle()`, `isPlaying()`, `stop()`,
 | Class | Channels | Character | Default or recommended seed | Steps/s |
 | --- | ---: | --- | --- | ---: |
 | `Neural` | 6 by default | Worms, mosaics, random neural textures | Preset-specific, often random density `0.2` | 120 |
+| `GrowingNeural` | 16 by default | Trained morphogenesis and regeneration | Single center cell with RGB 0 and channels 3+ set to 1 | 60 |
 | `ReactionDiffusion` | 2 | Gray-Scott coral, spots, worms, waves | Specialized ragged V patches in an idle U field | 1000 |
 | `Lenia` | 1 | Continuous blobs and organisms | Kernel-scale continuous blobs | 30 |
 | `Pokemon` | 4 | Colored type-domain battles | Specialized Voronoi mosaic | 100 |
@@ -66,6 +67,7 @@ Use each class's static `recommendedStepsPerSecond` rather than hard-coding the 
 Useful exports include:
 
 - `Neural.PRESETS`, `WORMS_KERNEL`, and `WORMS_GAUSS_WIDTH`
+- `GrowingNeural.fromArtifact(...)`, `GROWING_NEURAL_CA_FORMAT`, and `GROWING_NEURAL_CA_VERSION`
 - `ReactionDiffusion.PRESETS`
 - `Life.PRESETS`, `countsToMask(...)`, and `maskToCounts(...)`
 - `LargerThanLife.PRESETS`, `largerThanLifeNeighborCount(...)`, and radius/state bounds
@@ -86,6 +88,7 @@ This calls the active automaton's `seed(width, height, options)` implementation.
 Important differences:
 
 - `Neural.applyPreset(name)` changes mode/values and returns the matching `SeedOptions`.
+- `GrowingNeural.fromArtifact(...)` restores trained weights and behavioral semantics; its center seed matches the Growing-NCA reference.
 - `ReactionDiffusion.applyPreset(name)` changes feed/kill only; call `reset(...)` separately.
 - `Life.PRESETS` supplies neighbor counts and a suited density. Convert counts to masks:
 

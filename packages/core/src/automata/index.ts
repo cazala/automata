@@ -25,6 +25,17 @@ export type {
   NeuralMode,
   Kernel,
 } from "./neural";
+export {
+  GrowingNeural,
+  GROWING_NEURAL_CA_FORMAT,
+  GROWING_NEURAL_CA_VERSION,
+} from "./growing-neural";
+export type {
+  GrowingNeuralArtifact,
+  GrowingNeuralOptions,
+  GrowingNeuralWeights,
+  GrowingNeuralWeightsSnapshot,
+} from "./growing-neural";
 export { Pokemon, POKEMON_TYPES, POKEMON_TYPE_COUNT } from "./pokemon";
 export type { PokemonOptions, PokemonTypeInfo } from "./pokemon";
 export { ReactionDiffusion } from "./reaction-diffusion";

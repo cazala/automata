@@ -1,6 +1,6 @@
 ---
 name: automata
-description: Build and tune real-time cellular automata, generative textures, artificial-life scenes, and custom WGSL rules with @cazala/automata. Use when embedding Automata in web apps; selecting or configuring Neural, ReactionDiffusion, Lenia, Pokemon, Life, Elementary, BriansBrain, or Cyclic; designing seeds, palettes, camera controls, and interaction; translating playground settings into code; debugging WebGPU output; optimizing grid performance; or authoring custom Automaton rules.
+description: Build and tune real-time cellular automata, generative textures, artificial-life scenes, and custom WGSL rules with @cazala/automata. Use when embedding Automata in web apps; selecting or configuring Neural, GrowingNeural, ReactionDiffusion, Lenia, Pokemon, Life, Elementary, BriansBrain, or Cyclic; designing seeds, palettes, camera controls, and interaction; translating playground settings into code; debugging WebGPU output; optimizing grid performance; or authoring custom Automaton rules.
 ---
 
 # Automata
@@ -69,6 +69,7 @@ Copy [the full Vite starter](assets/starter/) when building a new app. It includ
 | Intent | Start with |
 | --- | --- |
 | Worms, mosaics, alien textures | `Neural`; use a named preset and its returned seed options |
+| Trained growth, persistence, and regeneration | `GrowingNeural`; load a versioned trainer artifact |
 | Coral, spots, waves, organic textures | `ReactionDiffusion`; choose a verified preset |
 | Soft continuous organisms | `Lenia`; keep its tuned seed and low step rate |
 | Competing colored domains | `Pokemon`; preserve its Voronoi seed |
@@ -96,6 +97,7 @@ Read [creative-workflow.md](references/creative-workflow.md) before inventing or
 ## Preserve rule semantics
 
 - Call `engine.reset(seedOptions)` to use the active automaton's specialized seed.
+- Keep `GrowingNeural` artifacts intact: their perception order, ReLU, fire rate, and pre/post life mask are model semantics.
 - Treat Gray-Scott's idle state as `[1, 0]`; filling it with `[0, 0]` creates inert cells.
 - Use preset-specific seed options: `Neural.applyPreset(name)` returns them, while `ReactionDiffusion.applyPreset(name)` only changes parameters.
 - Update declared values with `automaton.set(...)` or typed setters; they are clamped realtime uniform writes.

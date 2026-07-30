@@ -9,8 +9,9 @@ WGSL.
 
 - **WebGPU compute:** advance large cell grids in parallel and render directly
   from GPU storage buffers.
-- **Nine built-in automata:** neural CA, reaction-diffusion, Lenia, Pokemon,
-  Life, Larger than Life, elementary rules, Brian's Brain, and cyclic automata.
+- **Ten built-in automata:** neural CA, trainable Growing Neural CA,
+  reaction-diffusion, Lenia, Pokemon, Life, Larger than Life, elementary rules,
+  Brian's Brain, and cyclic automata.
 - **Tuned starting states:** each rule provides useful defaults, presets,
   render hints, and seeding designed for its dynamics.
 - **Realtime controls:** update declared parameters with uniform writes and no
@@ -99,6 +100,7 @@ keep a CSS or static-image fallback.
 | Class | System | Highlights |
 | --- | --- | --- |
 | `Neural` | Convolutional neural CA or an injectable two-layer MLP substrate | Worms, mitosis, mosaic, trained weights, and network presets |
+| `GrowingNeural` | Differentiable morphogenesis rule from Growing Neural Cellular Automata | Serializable trainer artifacts, stochastic residual updates, exact pre/post life mask, regeneration |
 | `ReactionDiffusion` | Gray-Scott two-chemical model | Coral, mitosis, solitons, worms, and waves |
 | `Lenia` | Continuous Life with a radial kernel and growth function | Realtime `mu`, `sigma`, and `dt`; structural radius |
 | `Pokemon` | 18-type battle CA using the type-effectiveness chart | Coherent domains and adjustable battle threshold |
@@ -174,6 +176,37 @@ The artifact uses row-major `[hidden][channels × 4]` and
 same-shape GPU weights without rebuilding, and `getNetworkWeights()` for a
 deep-copying snapshot. The [Neural catalog](./docs/automata.md#injecting-trained-network-weights)
 documents validation, perception ordering, and serialization.
+
+### Growing Neural CA artifacts
+
+`GrowingNeural` implements the two-phase update rule from
+[Growing Neural Cellular Automata](https://distill.pub/2020/growing-ca/):
+identity/Sobel perception, a shared ReLU MLP, stochastic residual updates, and
+the alpha-channel pre/post life mask.
+
+```ts
+import { Engine, GrowingNeural } from "@cazala/automata";
+
+const artifact = await fetch("/models/butterfly.json").then((r) => r.json());
+const automaton = GrowingNeural.fromArtifact(artifact);
+const engine = new Engine({
+  canvas,
+  automaton,
+  grid: { width: 72, height: 72, wrap: false },
+  render: { colorBg: { r: 1, g: 1, b: 1, a: 1 } },
+});
+await engine.initialize();
+engine.coverGrid();
+engine.reset({ mode: "center" });
+engine.play();
+```
+
+The versioned JSON artifact stores `[hidden][channels × 3]` and
+`[channels][hidden]` matrices plus the fire rate, step size, and life-mask
+semantics. `getArtifact()` produces a JSON-safe object, while `setWeights()`
+replaces same-shape GPU weights without rebuilding. The repository also
+includes `pnpm convert:growing-ca` for converting the official TensorFlow.js
+graph exports.
 
 ## Development
 

@@ -40,12 +40,41 @@ export interface StorageSpec {
   data: Float32Array;
 }
 
+/** Grid-sized writable storage shared by all phases in a logical generation. */
+export interface ScratchSpec {
+  /** WGSL binding name, must be a valid identifier. */
+  name: string;
+  /** Number of f32 values allocated per grid cell. */
+  valuesPerCell: number;
+}
+
+/** Boundary behavior used by sampleAt() for out-of-grid coordinates. */
+export type BoundaryMode = "wrap" | "clamp" | "zero";
+
+/**
+ * An additional compute phase within one logical generation.
+ *
+ * Every phase reads the state written by the previous phase and writes the
+ * other ping-pong buffer. Pass boundaries make cross-cell dependencies on an
+ * earlier phase deterministic across the whole grid.
+ */
+export interface AutomatonPhase {
+  /** Diagnostic label used in shader and pipeline errors. */
+  name: string;
+  /** Extra WGSL available to this phase in addition to descriptor globals. */
+  globals?: string;
+  /** WGSL body of the per-cell phase function. */
+  step: string;
+}
+
 /** Hints for the engine's built-in renderer. */
 export interface RenderHints {
   /**
    * 0 = channel 0 through the colorOff->colorOn gradient;
    * 1 = channels 0..2 through per-channel gradients (hue-preserving);
    * 2 = channels 0..2 as raw rgb (cells carry their own palette).
+   * 3 = channels 0..2 as premultiplied rgb and channel 3 as alpha,
+   *     composited over colorBg.
    */
   colorMode?: number;
   /**
@@ -59,6 +88,12 @@ export interface AutomatonDescriptor {
   channels: number;
   params: ParamSpec[];
   storages?: StorageSpec[];
+  scratch?: ScratchSpec[];
+  /**
+   * Override the engine grid's wrap/clamp choice. "zero" matches SAME-padded
+   * convolutions whose out-of-grid samples are empty.
+   */
+  boundary?: BoundaryMode;
   /**
    * When true the engine advances a `currentRow` uniform each step (elementary CA):
    * only that row is (re)computed from the row above; all other rows are copied.
@@ -78,6 +113,11 @@ export interface AutomatonDescriptor {
   globals?: string;
   /** WGSL body of the per-cell step function. */
   step: string;
+  /**
+   * Ordered compute phases executed after `step` in the same logical
+   * generation. Each phase sees the complete output of the previous phase.
+   */
+  phases?: AutomatonPhase[];
 }
 
 /** How an initial grid state should be generated. */
@@ -214,8 +254,11 @@ export interface CustomAutomatonOptions {
   channels: number;
   params?: ParamSpec[];
   storages?: StorageSpec[];
+  scratch?: ScratchSpec[];
+  boundary?: BoundaryMode;
   globals?: string;
   step: string;
+  phases?: AutomatonPhase[];
   advancesRow?: boolean;
   stepParity?: number;
   render?: RenderHints;
@@ -250,8 +293,11 @@ export function createAutomaton(options: CustomAutomatonOptions): Automaton {
         channels: options.channels,
         params: specs,
         storages: options.storages,
+        scratch: options.scratch,
+        boundary: options.boundary,
         globals: options.globals,
         step: options.step,
+        phases: options.phases,
         advancesRow: options.advancesRow,
         stepParity: options.stepParity,
         render: options.render,

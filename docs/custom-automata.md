@@ -46,7 +46,7 @@ cell, with these in scope:
 | Symbol | Meaning |
 | --- | --- |
 | `x`, `y` | this cell's coords (`i32`) |
-| `sampleAt(x, y, c) -> f32` | read channel `c` of any cell from the *previous* state (wraps or clamps per grid config) |
+| `sampleAt(x, y, c) -> f32` | read channel `c` of any cell from the *previous* state (wraps/clamps per grid config, or returns zero with `boundary: "zero"`) |
 | `setCell(x, y, c, v)` | write channel `c` of the *next* state (write your own cell) |
 | `params.<name>` | your declared params (uniforms) |
 | `sim.width`, `sim.height`, `sim.channels` | grid dims (`u32`) |
@@ -93,6 +93,39 @@ Storage contents can be updated in place without a rebuild via
 `engine.updateStorage(name, data)` — but a *size* change needs a rebuild
 (subclass + `requestRebuild()`).
 
+## Ordered phases and scratch storage
+
+Use `phases` when a result depends on neighboring values produced across the
+entire grid by an earlier computation. Each phase gets a separate compute pass
+and reads the complete output of the preceding phase:
+
+```ts
+return {
+  channels: 4,
+  params,
+  scratch: [{ name: "wasAlive", valuesPerCell: 1 }],
+  step: `
+    wasAlive[u32(x) + u32(y) * sim.width] =
+      select(0.0, 1.0, sampleAt(x, y, 3) > 0.1);
+    // Write a candidate state.
+  `,
+  phases: [{
+    name: "life-mask",
+    step: `
+      let cell = u32(x) + u32(y) * sim.width;
+      let alive = wasAlive[cell] > 0.5 && sampleAt(x, y, 3) > 0.1;
+      for (var c = 0; c < 4; c++) {
+        setCell(x, y, c, select(0.0, sampleAt(x, y, c), alive));
+      }
+    `,
+  }],
+};
+```
+
+Scratch buffers are grid-sized writable f32 arrays shared by the phases. Use
+them for compact derived state such as masks or counters. They are recreated
+when the grid or automaton is rebuilt.
+
 ## Structural constants
 
 Anything baked into the WGSL string (loop bounds, channel counts) can't be a
@@ -109,6 +142,8 @@ render: { colorMode: 1, invertPalette: false }
 - `colorMode 1` — channels 0..2 each through the gradient (palette-tinted, hue-preserving).
 - `colorMode 2` — channels 0..2 as raw rgb (your cells carry their own colors;
   see pokemon/cyclic, which write palette colors into channels each step).
+- `colorMode 3` — channels 0..2 as premultiplied rgb and channel 3 as alpha,
+  composited over `colorBg`.
 - `invertPalette` — for rules whose idle state is a *high* value (Gray-Scott).
 
 ## Seeding
