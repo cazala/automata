@@ -15,6 +15,11 @@ const HOMEPAGE_EXIT_MS = 720;
 function AppContent() {
   const dispatch = useAppDispatch();
   const isHomepage = useAppSelector((s) => s.ui.isHomepage);
+  const showGrowingHint = useAppSelector(
+    (s) =>
+      s.config.type === "neural" &&
+      s.config.neural.preset === "butterfly"
+  );
   const engine = useEngine();
   const [showHomepage, setShowHomepage] = useState(isHomepage);
   const [isEnteringPlayground, setIsEnteringPlayground] = useState(false);
@@ -74,6 +79,12 @@ function AppContent() {
       <div className="app-content">
         <div className="canvas-container">
           <Canvas />
+          {!showHomepage && showGrowingHint && (
+            <div className="growing-damage-hint" role="note">
+              Click or drag across the butterfly to damage it — then watch it
+              regenerate.
+            </div>
+          )}
           {!showHomepage && (
             <button
               className="mobile-reset-button"

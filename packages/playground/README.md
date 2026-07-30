@@ -20,7 +20,8 @@ library source.
 
 ## What's in it
 
-- **Six automata**: Neural (worms — the boot default), Pokemon type battles,
+- **Six automata**: Neural (worms and a pretrained regenerating butterfly),
+  Pokemon type battles,
   Gray-Scott reaction-diffusion, Lenia, Life (classic and expanded-neighborhood
   presets), and elementary (Wolfram) rules, with per-automaton presets, speeds,
   and settings panels.

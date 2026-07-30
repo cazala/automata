@@ -110,6 +110,23 @@
   margin-bottom: 22px;
 }
 
+.neural-model-choice {
+  margin-bottom: 12px;
+}
+
+.growing-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.growing-controls .ui-button {
+  min-width: 0;
+  padding: 8px 5px;
+  font-size: 11px;
+}
+
 .mask-grid {
   display: grid;
   grid-template-columns: repeat(9, 1fr);

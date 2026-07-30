@@ -71,7 +71,7 @@
 
   const canvas = document.querySelector("canvas");
   const output = document.querySelector("#result");
-  const artifact = await fetch("./growing-ca-butterfly.json").then((response) => {
+  const artifact = await fetch("../src/assets/growing-ca-butterfly.json").then((response) => {
     if (!response.ok) throw new Error(`Model request failed: ${response.status}`);
     return response.json();
   });

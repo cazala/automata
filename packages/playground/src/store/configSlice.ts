@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import {
+  GrowingNeural,
   Life,
   LargerThanLife,
   largerThanLifeNeighborCount,
@@ -23,7 +24,10 @@ export function maxStepsPerSecond(type: AutomatonType): number {
 }
 
 /** Speed to apply when an automaton is selected. */
-export function defaultStepsPerSecond(type: AutomatonType): number {
+export function defaultStepsPerSecond(
+  type: AutomatonType,
+  neuralPreset: NeuralPreset = "worms"
+): number {
   switch (type) {
     case "pokemon":
       return 100;
@@ -33,8 +37,11 @@ export function defaultStepsPerSecond(type: AutomatonType): number {
       return 30;
     case "life":
     case "elementary":
-    case "neural":
       return 120;
+    case "neural":
+      return neuralPreset === "butterfly"
+        ? GrowingNeural.recommendedStepsPerSecond
+        : 120;
   }
 }
 
@@ -65,8 +72,10 @@ export interface ElementaryConfig {
 }
 
 export type NeuralModeUI = "network" | "direct";
+export type NeuralPreset = "worms" | "butterfly";
 
 export interface NeuralConfig {
+  preset: NeuralPreset;
   mode: NeuralModeUI;
   channels: number;
   hidden: number;
@@ -171,6 +180,7 @@ export const defaultConfig: ConfigState = {
   },
   elementary: { rule: 30 },
   neural: {
+    preset: "worms",
     mode: "direct",
     channels: 6,
     hidden: 32,
@@ -238,8 +248,12 @@ function expandedLifePresetForConfig(
 
 function defaultInitForType(
   type: AutomatonType,
-  life: LifeConfig
+  life: LifeConfig,
+  neural: NeuralConfig
 ): InitConfig {
+  if (type === "neural" && neural.preset === "butterfly") {
+    return { mode: "center", density: 1 };
+  }
   if (type === "lenia") return { mode: "random", density: 1 };
   if (type === "life") {
     return {
@@ -255,13 +269,18 @@ function defaultInitForType(
   return { ...defaultConfig.init };
 }
 
-function defaultStepsForConfig(type: AutomatonType, life: LifeConfig): number {
+function defaultStepsForConfig(
+  type: AutomatonType,
+  life: LifeConfig,
+  neural: NeuralConfig
+): number {
   return type === "life" && life.mode === "larger"
     ? LargerThanLife.recommendedStepsPerSecond
-    : defaultStepsPerSecond(type);
+    : defaultStepsPerSecond(type, neural.preset);
 }
 
 function constrainNeural(neural: NeuralConfig): void {
+  neural.preset = neural.preset === "butterfly" ? "butterfly" : "worms";
   neural.mode = "direct";
   neural.channels = 6;
   neural.activation = ACTIVATION_GAUSSIAN;
@@ -343,8 +362,12 @@ const configSlice = createSlice({
   reducers: {
     setType(state, action: PayloadAction<AutomatonType>) {
       state.type = action.payload;
-      state.stepsPerSecond = defaultStepsForConfig(action.payload, state.life);
-      const init = defaultInitForType(action.payload, state.life);
+      state.stepsPerSecond = defaultStepsForConfig(
+        action.payload,
+        state.life,
+        state.neural
+      );
+      const init = defaultInitForType(action.payload, state.life, state.neural);
       state.init.mode = init.mode;
       state.init.density = init.density;
     },
@@ -353,15 +376,33 @@ const configSlice = createSlice({
       Object.assign(state.life, action.payload);
       constrainLife(state.life);
       if (state.type === "life" && state.life.mode !== previousMode) {
-        state.stepsPerSecond = defaultStepsForConfig(state.type, state.life);
+        state.stepsPerSecond = defaultStepsForConfig(
+          state.type,
+          state.life,
+          state.neural
+        );
       }
     },
     setElementaryRule(state, action: PayloadAction<number>) {
       state.elementary.rule = action.payload;
     },
     setNeural(state, action: PayloadAction<Partial<NeuralConfig>>) {
+      const previousPreset = state.neural.preset;
       Object.assign(state.neural, action.payload);
       constrainNeural(state.neural);
+      if (
+        state.type === "neural" &&
+        state.neural.preset !== previousPreset
+      ) {
+        state.stepsPerSecond = defaultStepsForConfig(
+          state.type,
+          state.life,
+          state.neural
+        );
+        const init = defaultInitForType(state.type, state.life, state.neural);
+        state.init.mode = init.mode;
+        state.init.density = init.density;
+      }
     },
     setPokemon(state, action: PayloadAction<Partial<PokemonConfig>>) {
       Object.assign(state.pokemon, action.payload);
