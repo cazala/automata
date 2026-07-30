@@ -10,14 +10,17 @@ import {
   Life,
   LargerThanLife,
   Elementary,
+  GrowingNeural,
   Neural,
   Pokemon,
   ReactionDiffusion,
   Lenia,
   type Activation,
   type Automaton,
+  type GrowingNeuralArtifact,
   type RenderConfig,
 } from "@cazala/automata";
+import butterflyArtifactJson from "../assets/growing-ca-butterfly.json?raw";
 import { hexToRgba } from "../utils/color";
 import { isMobileDevice } from "../utils/deviceCapabilities";
 import { useAppDispatch, useAppSelector } from "../store";
@@ -33,6 +36,7 @@ interface EngineApi {
   toggle: () => void;
   step: () => void;
   reset: () => void;
+  damage: () => void;
   clear: () => void;
   applyInit: () => void;
   eraseAt: (worldX: number, worldY: number) => void;
@@ -41,6 +45,7 @@ interface EngineApi {
   zoomAt: (factor: number, cx: number, cy: number) => void;
   panBy: (dxCss: number, dyCss: number) => void;
   resizeCanvas: (cssW: number, cssH: number) => void;
+  setGrowingViewportHeight: (visibleHeight?: number) => void;
   resetView: () => void;
 }
 
@@ -63,6 +68,36 @@ const MAX_CELLS = 2048;
  */
 const DEFAULT_CELL_PX = 1.5;
 const REACTION_CELL_PX = 1;
+const GROWING_GRID_SIZE = 72;
+const GROWING_DAMAGE_RADIUS = 11;
+const GROWING_POINTER_DAMAGE_RADIUS = GROWING_DAMAGE_RADIUS / 2;
+const BUTTERFLY_ARTIFACT = JSON.parse(
+  butterflyArtifactJson
+) as GrowingNeuralArtifact;
+
+function isGrowingNeural(config: ConfigState): boolean {
+  return config.type === "neural" && config.neural.preset === "butterfly";
+}
+
+/** Fit the square Growing-NCA grid inside the unobscured top of the canvas. */
+function fitGrowingToViewport(
+  engine: Engine,
+  requestedVisibleHeight?: number
+): void {
+  const size = engine.getSize();
+  const grid = engine.getGridSize();
+  const visibleHeight = Math.max(
+    1,
+    Math.min(size.height, requestedVisibleHeight ?? size.height)
+  );
+  const zoom =
+    Math.min(size.width / grid.width, visibleHeight / grid.height) * 0.9;
+  engine.setZoom(zoom);
+  engine.setCamera(
+    grid.width / 2,
+    grid.height / 2 + (size.height - visibleHeight) / (2 * zoom)
+  );
+}
 
 const clampCells = (n: number) =>
   Math.max(MIN_CELLS, Math.min(MAX_CELLS, Math.round(n)));
@@ -71,8 +106,11 @@ function cellPxForType(type: ConfigState["type"]): number {
   return type === "rd" ? REACTION_CELL_PX : DEFAULT_CELL_PX;
 }
 
-function gridForCanvas(cssW: number, cssH: number, type: ConfigState["type"]) {
-  const cellPx = cellPxForType(type);
+function gridForCanvas(cssW: number, cssH: number, config: ConfigState) {
+  if (isGrowingNeural(config)) {
+    return { width: GROWING_GRID_SIZE, height: GROWING_GRID_SIZE };
+  }
+  const cellPx = cellPxForType(config.type);
   return {
     width: clampCells(Math.ceil(cssW / cellPx)),
     height: clampCells(Math.ceil(cssH / cellPx)),
@@ -103,6 +141,9 @@ function buildAutomaton(config: ConfigState): Automaton {
     case "elementary":
       return new Elementary({ rule: config.elementary.rule });
     case "neural":
+      if (config.neural.preset === "butterfly") {
+        return GrowingNeural.fromArtifact(BUTTERFLY_ARTIFACT);
+      }
       return new Neural({
         mode: config.neural.mode,
         channels: config.neural.channels,
@@ -162,6 +203,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
 
   const engineRef = useRef<Engine | null>(null);
   const automatonRef = useRef<Automaton | null>(null);
+  const growingViewportHeightRef = useRef<number | undefined>(undefined);
   // Synchronous guard against React StrictMode double-invoking init before the
   // async initialize() resolves and sets engineRef.
   const initStarted = useRef(false);
@@ -177,7 +219,11 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     const cfg = configRef.current;
     // Each automaton owns its initial-state recipe (Automaton.seed); the
     // playground just forwards the user's mode/density choice.
-    engine.reset({ mode: cfg.init.mode, density: cfg.init.density });
+    engine.reset(
+      isGrowingNeural(cfg)
+        ? { mode: "center" }
+        : { mode: cfg.init.mode, density: cfg.init.density }
+    );
   }, []);
 
   // ---- lifecycle ------------------------------------------------------------
@@ -192,12 +238,16 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       const grid = gridForCanvas(
         canvas.clientWidth || window.innerWidth,
         canvas.clientHeight || window.innerHeight,
-        cfg.type
+        cfg
       );
       const engine = new Engine({
         canvas,
         automaton,
-        grid: { ...grid, wrap: cfg.grid.wrap, maxCells: MAX_CELLS },
+        grid: {
+          ...grid,
+          wrap: isGrowingNeural(cfg) ? false : cfg.grid.wrap,
+          maxCells: MAX_CELLS,
+        },
         stepsPerSecond: cfg.stepsPerSecond,
         render: renderConfigFrom(cfg),
       });
@@ -205,8 +255,10 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       await engine.initialize();
       // On touch devices the boot view is the max zoom-out: pinching can only
       // zoom in, so the grid never grows past what a phone GPU handles.
-      if (isMobileDevice()) engine.setCoverMinZoom(true);
-      engine.coverGrid();
+      engine.setCoverMinZoom(isMobileDevice() && !isGrowingNeural(cfg));
+      if (isGrowingNeural(cfg)) {
+        fitGrowingToViewport(engine, growingViewportHeightRef.current);
+      } else engine.coverGrid();
       applyInit();
       // Start a live demo behind the homepage overlay.
       engine.play();
@@ -252,6 +304,18 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     applyInit();
   }, [applyInit]);
 
+  const damage = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || !isGrowingNeural(configRef.current)) return;
+    const grid = engine.getGridSize();
+    engine.fillCircle(
+      grid.width / 2,
+      grid.height / 2,
+      GROWING_DAMAGE_RADIUS,
+      new Array(engine.getChannels()).fill(0)
+    );
+  }, []);
+
   const resetView = useCallback(() => {
     engineRef.current?.coverGrid();
   }, []);
@@ -283,7 +347,10 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       configRef.current.type === "rd"
         ? [1, 0]
         : new Array(engine.getChannels()).fill(0);
-    engine.fillCircle(worldX, worldY, ERASE_RADIUS, values);
+    const radius = isGrowingNeural(configRef.current)
+      ? GROWING_POINTER_DAMAGE_RADIUS
+      : ERASE_RADIUS;
+    engine.fillCircle(worldX, worldY, radius, values);
   }, []);
 
   /** Zoom by a factor keeping the world point under (cx, cy) fixed. */
@@ -299,7 +366,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
         camera.x + (before.x - after.x),
         camera.y + (before.y - after.y)
       );
-      engine.ensureGridCovers();
+      if (!isGrowingNeural(configRef.current)) engine.ensureGridCovers();
     },
     [screenToWorld]
   );
@@ -317,19 +384,29 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     const zoom = engine.getZoom();
     const camera = engine.getCamera();
     engine.setCamera(camera.x - dxCss / zoom, camera.y - dyCss / zoom);
-    engine.ensureGridCovers();
+    if (!isGrowingNeural(configRef.current)) engine.ensureGridCovers();
   }, []);
 
   const resizeCanvas = useCallback((cssW: number, cssH: number) => {
     const engine = engineRef.current;
     if (!engine || cssW <= 0 || cssH <= 0) return;
     engine.setSize(cssW, cssH);
-    engine.ensureGridCovers();
+    if (isGrowingNeural(configRef.current)) {
+      fitGrowingToViewport(engine, growingViewportHeightRef.current);
+    } else engine.ensureGridCovers();
+  }, []);
+
+  const setGrowingViewportHeight = useCallback((visibleHeight?: number) => {
+    growingViewportHeightRef.current = visibleHeight;
+    const engine = engineRef.current;
+    if (engine && isGrowingNeural(configRef.current)) {
+      fitGrowingToViewport(engine, visibleHeight);
+    }
   }, []);
 
   // ---- config -> engine sync (dual-write realtime) --------------------------
 
-  // Automaton type change: rebuild automaton, swap, reapply init.
+  // Automaton type or Neural preset change: rebuild, resize, and re-seed.
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -338,16 +415,20 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     automatonRef.current = automaton;
     engine.setRenderConfig(renderConfigFrom(cfg));
     engine.setAutomaton(automaton);
+    engine.setWrap(isGrowingNeural(cfg) ? false : cfg.grid.wrap);
+    engine.setCoverMinZoom(isMobileDevice() && !isGrowingNeural(cfg));
     const size = engine.getSize();
-    const grid = gridForCanvas(size.width, size.height, cfg.type);
+    const grid = gridForCanvas(size.width, size.height, cfg);
     const current = engine.getGridSize();
     if (current.width !== grid.width || current.height !== grid.height) {
       engine.resize(grid.width, grid.height);
     }
-    engine.coverGrid();
+    if (isGrowingNeural(cfg)) {
+      fitGrowingToViewport(engine, growingViewportHeightRef.current);
+    } else engine.coverGrid();
     applyInit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.type]);
+  }, [config.type, config.neural.preset]);
 
   // Life's preset list spans two implementations. Switching between classic
   // masks and expanded ranges keeps one visible automaton but swaps the core
@@ -468,7 +549,9 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
 
   // Grid wrap.
   useEffect(() => {
-    engineRef.current?.setWrap(config.grid.wrap);
+    if (!isGrowingNeural(configRef.current)) {
+      engineRef.current?.setWrap(config.grid.wrap);
+    }
   }, [config.grid.wrap]);
 
   // Pokemon params. Region size and type participation only shape the next
@@ -535,6 +618,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     toggle,
     step,
     reset,
+    damage,
     clear,
     applyInit,
     eraseAt,
@@ -542,6 +626,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     handleWheel,
     panBy,
     resizeCanvas,
+    setGrowingViewportHeight,
     resetView,
     zoomAt,
   };

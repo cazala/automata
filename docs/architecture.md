@@ -18,8 +18,9 @@ Engine ── owns: GPUDevice, canvas context, two ping-pong cell buffers,
           compute pipeline, render pipeline, rAF loop, camera (View)
 ```
 
-One compute dispatch per simulation step (8×8 workgroups over the grid); one
-fullscreen render pass per animation frame, colorizing the newest buffer.
+One or more ordered compute phases per simulation step (8×8 workgroups over
+the grid); one fullscreen render pass per animation frame, colorizing the
+newest buffer.
 
 ## The cell grid
 
@@ -28,6 +29,12 @@ fullscreen render pass per animation frame, colorizing the newest buffer.
 Reads in the shader always see the previous state, so update order is
 irrelevant. CPU-side writes (`setCells`, `fillCircle`, seeding) target the
 *current* buffer via `queue.writeBuffer`.
+
+An automaton may add `phases` after its primary `step`. Each phase gets a
+separate compute pass, flips ping-pong ownership, and therefore sees the
+complete grid produced by the previous phase. Grid-sized `scratch` buffers
+carry compact derived values between phases. `GrowingNeural` uses this for its
+pre-life mask and post-update neighbor mask.
 
 ## Realtime vs structural changes
 

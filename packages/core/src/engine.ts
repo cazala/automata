@@ -15,7 +15,13 @@
  */
 
 import { View, type ViewSnapshot } from "./view";
-import { Automaton, type RenderHints, type SeedOptions } from "./automaton";
+import {
+  Automaton,
+  type BoundaryMode,
+  type RenderHints,
+  type ScratchSpec,
+  type SeedOptions,
+} from "./automaton";
 import {
   buildCompute,
   packParams,
@@ -103,17 +109,19 @@ export class Engine {
   private renderUniform!: GPUBuffer;
   private paramsBuffer: GPUBuffer | null = null;
   private storageBuffers = new Map<string, GPUBuffer>();
+  private scratchBuffers = new Map<string, GPUBuffer>();
   private cellBuffers: [GPUBuffer, GPUBuffer] | null = null;
   private current = 0; // index of buffer holding the latest state
 
-  private computePipeline!: GPUComputePipeline;
+  private computePipelines: GPUComputePipeline[] = [];
   private renderPipeline!: GPURenderPipeline;
-  private computeBind: [GPUBindGroup, GPUBindGroup] | null = null;
+  private computeBind: Array<[GPUBindGroup, GPUBindGroup]> = [];
   private renderBind: [GPUBindGroup, GPUBindGroup] | null = null;
 
-  private built: BuiltCompute | null = null;
+  private built: BuiltCompute[] = [];
   private advancesRowFlag = false;
   private stepParity = 1;
+  private boundaryHint: BoundaryMode | null = null;
   private renderHints: RenderHints = {};
   private onError: (error: Error) => void;
 
@@ -149,6 +157,18 @@ export class Engine {
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) throw new Error("No WebGPU adapter found.");
     this.device = await adapter.requestDevice();
+    this.device.addEventListener("uncapturederror", (event) => {
+      this.onError(new Error(`WebGPU validation error: ${event.error.message}`));
+    });
+    void this.device.lost.then((info) => {
+      if (this.initialized) {
+        this.onError(
+          new Error(
+            `WebGPU device lost (${info.reason || "unknown"}): ${info.message}`,
+          ),
+        );
+      }
+    });
 
     const ctx = this.canvas.getContext("webgpu");
     if (!ctx) throw new Error("Could not create a WebGPU canvas context.");
@@ -200,6 +220,7 @@ export class Engine {
     this.cellBuffers?.forEach((b) => b.destroy());
     this.paramsBuffer?.destroy();
     this.storageBuffers.forEach((b) => b.destroy());
+    this.scratchBuffers.forEach((b) => b.destroy());
     this.simBuffer?.destroy();
     this.renderUniform?.destroy();
     this.device?.destroy?.();
@@ -215,10 +236,14 @@ export class Engine {
   private rebuild(): void {
     if (!this.device) return;
     const desc = this.automaton.build();
-    const built = buildCompute(desc);
+    const built = [
+      buildCompute(desc),
+      ...(desc.phases ?? []).map((phase) => buildCompute(desc, phase)),
+    ];
     this.built = built;
     this.advancesRowFlag = desc.advancesRow === true;
     this.stepParity = Math.max(1, Math.floor(desc.stepParity ?? 1));
+    this.boundaryHint = desc.boundary ?? null;
     this.renderHints = desc.render ?? {};
 
     const prevChannels = this.channels;
@@ -245,9 +270,10 @@ export class Engine {
     // Params uniform.
     this.paramsBuffer?.destroy();
     this.paramsBuffer = null;
-    if (built.paramsSize > 0) {
+    const primary = built[0];
+    if (primary && primary.paramsSize > 0) {
       this.paramsBuffer = this.device.createBuffer({
-        size: built.paramsSize,
+        size: primary.paramsSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
       this.device.queue.writeBuffer(
@@ -268,69 +294,115 @@ export class Engine {
       this.device.queue.writeBuffer(buf, 0, s.data);
       this.storageBuffers.set(s.name, buf);
     }
+    this.rebuildScratchBuffers(desc.scratch ?? []);
 
     // Compute pipeline. Surface compile errors loudly: without this, a broken
     // WGSL step fails silently and presents as a frozen simulation.
-    const module = this.device.createShaderModule({ code: built.code });
-    void module.getCompilationInfo().then((info) => {
-      const errors = info.messages.filter((m) => m.type === "error");
-      if (errors.length > 0) {
-        const detail = errors
-          .map((m) => `  line ${m.lineNum}:${m.linePos} ${m.message}`)
-          .join("\n");
-        this.onError(
-          new Error(
-            `Shader compilation failed for automaton "${this.automaton.name}":\n${detail}`
-          )
-        );
-      }
-    });
-    this.device.pushErrorScope("validation");
-    this.computePipeline = this.device.createComputePipeline({
-      layout: "auto",
-      compute: { module, entryPoint: "step" },
-    });
-    void this.device.popErrorScope().then((err) => {
-      if (err) {
-        this.onError(
-          new Error(
-            `Pipeline validation failed for automaton "${this.automaton.name}": ${err.message}`
-          )
-        );
-      }
+    this.computePipelines = built.map((phase, index) => {
+      const phaseName = index === 0
+        ? "step"
+        : (desc.phases?.[index - 1]?.name ?? `phase ${index}`);
+      const module = this.device.createShaderModule({
+        label: `${this.automaton.name}: ${phaseName}`,
+        code: phase.code,
+      });
+      void module.getCompilationInfo().then((info) => {
+        const errors = info.messages.filter((m) => m.type === "error");
+        if (errors.length > 0) {
+          const detail = errors
+            .map((m) => `  line ${m.lineNum}:${m.linePos} ${m.message}`)
+            .join("\n");
+          this.onError(
+            new Error(
+              `Shader compilation failed for automaton "${this.automaton.name}" ` +
+                `(${phaseName}):\n${detail}`
+            )
+          );
+        }
+      });
+      this.device.pushErrorScope("validation");
+      const pipeline = this.device.createComputePipeline({
+        label: `${this.automaton.name}: ${phaseName}`,
+        layout: "auto",
+        compute: { module, entryPoint: "step" },
+      });
+      void this.device.popErrorScope().then((err) => {
+        if (err) {
+          this.onError(
+            new Error(
+              `Pipeline validation failed for automaton "${this.automaton.name}" ` +
+                `(${phaseName}): ${err.message}`
+            )
+          );
+        }
+      });
+      return pipeline;
     });
 
     this.rebuildBindGroups();
   }
 
+  private rebuildScratchBuffers(scratch: readonly ScratchSpec[]): void {
+    this.scratchBuffers.forEach((b) => b.destroy());
+    this.scratchBuffers.clear();
+    for (const s of scratch) {
+      const valuesPerCell = Math.max(1, Math.floor(s.valuesPerCell));
+      const buf = this.device.createBuffer({
+        size: Math.max(4, this.gridW * this.gridH * valuesPerCell * 4),
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      });
+      this.scratchBuffers.set(s.name, buf);
+    }
+  }
+
   private rebuildBindGroups(): void {
-    if (!this.cellBuffers || !this.built) return;
+    if (!this.cellBuffers || this.built.length === 0) return;
     const [a, b] = this.cellBuffers;
 
-    const computeEntries = (src: GPUBuffer, dst: GPUBuffer): GPUBindGroupEntry[] => {
+    const computeEntries = (
+      phase: BuiltCompute,
+      src: GPUBuffer,
+      dst: GPUBuffer,
+    ): GPUBindGroupEntry[] => {
       const entries: GPUBindGroupEntry[] = [
         { binding: 0, resource: { buffer: this.simBuffer } },
         { binding: 1, resource: { buffer: src } },
         { binding: 2, resource: { buffer: dst } },
       ];
-      if (this.paramsBuffer && this.built!.paramsBinding >= 0) {
+      if (this.paramsBuffer && phase.paramsBinding >= 0) {
         entries.push({
-          binding: this.built!.paramsBinding,
+          binding: phase.paramsBinding,
           resource: { buffer: this.paramsBuffer },
         });
       }
-      for (const [name, binding] of Object.entries(this.built!.storageBindings)) {
+      for (const [name, binding] of Object.entries(phase.storageBindings)) {
         const buf = this.storageBuffers.get(name)!;
+        entries.push({ binding, resource: { buffer: buf } });
+      }
+      for (const [name, binding] of Object.entries(phase.scratchBindings)) {
+        const buf = this.scratchBuffers.get(name)!;
         entries.push({ binding, resource: { buffer: buf } });
       }
       return entries;
     };
 
-    const layout = this.computePipeline.getBindGroupLayout(0);
-    this.computeBind = [
-      this.device.createBindGroup({ layout, entries: computeEntries(a, b) }),
-      this.device.createBindGroup({ layout, entries: computeEntries(b, a) }),
-    ];
+    this.computeBind = this.computePipelines.map((pipeline, index) => {
+      const phase = this.built[index]!;
+      const layout = pipeline.getBindGroupLayout(0);
+      return [
+        this.device.createBindGroup({
+          layout,
+          entries: computeEntries(phase, a, b),
+        }),
+        this.device.createBindGroup({
+          layout,
+          entries: computeEntries(phase, b, a),
+        }),
+      ];
+    });
 
     const rLayout = this.renderPipeline.getBindGroupLayout(0);
     const renderEntries = (cells: GPUBuffer): GPUBindGroupEntry[] => [
@@ -344,7 +416,7 @@ export class Engine {
   }
 
   private flushParam(_name: string): void {
-    if (!this.device || !this.paramsBuffer || !this.built) return;
+    if (!this.device || !this.paramsBuffer || this.built.length === 0) return;
     const desc = this.automaton.build();
     this.device.queue.writeBuffer(
       this.paramsBuffer,
@@ -483,6 +555,7 @@ export class Engine {
     this.current = 0;
     this.gridW = newW;
     this.gridH = newH;
+    this.rebuildScratchBuffers(this.automaton.build().scratch ?? []);
     this.updateZoomLimits();
     this.rebuildBindGroups();
   }
@@ -667,7 +740,11 @@ export class Engine {
 
   /** Advance the simulation by exactly one generation. */
   step(): void {
-    if (!this.device || !this.computeBind || !this.cellBuffers) return;
+    if (
+      !this.device ||
+      this.computeBind.length === 0 ||
+      !this.cellBuffers
+    ) return;
 
     const currentRow = this.advancesRowFlag
       ? (this.rowCounter % Math.max(1, this.gridH - 1)) + 1
@@ -678,26 +755,44 @@ export class Engine {
     sim[0] = this.gridW;
     sim[1] = this.gridH;
     sim[2] = this.channels;
-    sim[3] = this.wrap ? 1 : 0;
+    sim[3] = this.boundaryHint === "zero"
+      ? 2
+      : this.boundaryHint === "wrap"
+      ? 1
+      : this.boundaryHint === "clamp"
+      ? 0
+      : this.wrap
+      ? 1
+      : 0;
     sim[4] = currentRow;
     sim[5] = this.frame >>> 0;
     sim[6] = (Math.imul(this.frame + 1, 2654435761) >>> 0) >>> 0;
     sim[7] = 0;
     this.device.queue.writeBuffer(this.simBuffer, 0, sim);
 
-    const encoder = this.device.createCommandEncoder();
-    const pass = encoder.beginComputePass();
-    pass.setPipeline(this.computePipeline);
-    pass.setBindGroup(0, this.computeBind[this.current]);
-    pass.dispatchWorkgroups(
-      Math.ceil(this.gridW / 8),
-      Math.ceil(this.gridH / 8),
-      1
-    );
-    pass.end();
+    const encoder = this.device.createCommandEncoder({
+      label: `${this.automaton.name}: generation ${this.frame}`,
+    });
+    let authoritative = this.current;
+    for (let index = 0; index < this.computePipelines.length; index++) {
+      const pass = encoder.beginComputePass({
+        label: index === 0
+          ? `${this.automaton.name}: step`
+          : `${this.automaton.name}: phase ${index}`,
+      });
+      pass.setPipeline(this.computePipelines[index]!);
+      pass.setBindGroup(0, this.computeBind[index]![authoritative]);
+      pass.dispatchWorkgroups(
+        Math.ceil(this.gridW / 8),
+        Math.ceil(this.gridH / 8),
+        1
+      );
+      pass.end();
+      authoritative = 1 - authoritative;
+    }
     this.device.queue.submit([encoder.finish()]);
 
-    this.current = 1 - this.current;
+    this.current = authoritative;
     this.frame++;
     this.rowCounter++;
   }

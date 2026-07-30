@@ -20,8 +20,9 @@ any integration code.
 
 - **WebGPU compute** — advance large cell grids in parallel and render them
   directly from GPU storage buffers.
-- **Nine built-in automata** — neural CA, Gray-Scott, Lenia, Pokemon, Life,
-  Larger than Life, elementary rules, Brian's Brain, and cyclic automata.
+- **Ten built-in automata** — neural CA, trainable Growing Neural CA,
+  Gray-Scott, Lenia, Pokemon, Life, Larger than Life, elementary rules,
+  Brian's Brain, and cyclic automata.
 - **Rules that start well** — each automaton provides tuned defaults, presets,
   render hints, and seeding suited to its dynamics.
 - **Realtime parameters** — update declared values with uniform writes, without

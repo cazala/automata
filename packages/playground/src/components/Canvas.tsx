@@ -22,10 +22,17 @@ function interactionFor(type: string): InteractionMode {
 export function Canvas() {
   const engine = useEngine();
   const automatonType = useAppSelector((s) => s.config.type);
+  const growingNeural = useAppSelector(
+    (s) =>
+      s.config.type === "neural" &&
+      s.config.neural.preset === "butterfly"
+  );
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const modeRef = useRef<InteractionMode>(interactionFor(automatonType));
   modeRef.current = interactionFor(automatonType);
+  const growingNeuralRef = useRef(growingNeural);
+  growingNeuralRef.current = growingNeural;
 
   // State kept in refs to avoid re-binding listeners.
   const erasing = useRef(false);
@@ -85,7 +92,8 @@ export function Canvas() {
     const prev = lastErase.current;
     if (prev) {
       const dist = Math.hypot(world.x - prev.x, world.y - prev.y);
-      const stepLen = 12; // cells; about half the eraser radius
+      // Keep small Growing-NCA cursor cuts continuous during fast drags.
+      const stepLen = growingNeuralRef.current ? 6 : 12;
       const steps = Math.floor(dist / stepLen);
       for (let i = 1; i <= steps; i++) {
         const t = i / (steps + 1);

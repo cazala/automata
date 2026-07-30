@@ -18,6 +18,10 @@
   cursor: grabbing;
 }
 
+#canvas.interaction-erase {
+  cursor: crosshair;
+}
+
 #canvas.interaction-none {
   cursor: default;
 }

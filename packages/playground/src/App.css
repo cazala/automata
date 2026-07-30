@@ -28,6 +28,47 @@
   display: none;
 }
 
+.growing-damage-hint {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(420px, calc(100% - 380px));
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(20, 20, 28, 0.78);
+  color: var(--color-text-primary);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  animation: growing-hint-in 300ms ease-out both;
+}
+
+.growing-hint-close {
+  display: none;
+}
+
+@keyframes growing-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .webgpu-unavailable {
   display: flex;
   flex-direction: column;
@@ -54,6 +95,63 @@ body {
 /* Mobile: the canvas fills the screen and the sidebar overlays it as a bottom
    sheet (see Sidebar.css). */
 @media (max-width: 768px) {
+  .growing-damage-hint {
+    top: calc(14px + env(safe-area-inset-top));
+    left: 14px;
+    right: auto;
+    box-sizing: border-box;
+    width: max-content;
+    max-width: calc(100% - 76px);
+    padding: 8px 7px 8px 11px;
+    border-radius: 999px;
+    text-align: left;
+    transform: none;
+  }
+
+  .growing-damage-hint span {
+    min-width: 0;
+  }
+
+  .growing-hint-close {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: -4px -3px -4px 0;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .growing-hint-close:active {
+    background: rgba(255, 255, 255, 0.16);
+    color: var(--color-text-primary);
+  }
+
+  .growing-hint-close:focus-visible {
+    outline: 2px solid var(--color-slider-thumb);
+    outline-offset: 2px;
+  }
+
+  @keyframes growing-hint-in {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .mobile-reset-button {
     position: absolute;
     top: calc(12px + env(safe-area-inset-top));
@@ -78,5 +176,11 @@ body {
   .mobile-reset-button:active {
     transform: scale(0.96);
     background: rgba(35, 35, 46, 0.9);
+  }
+}
+
+@media (min-width: 300px) and (max-width: 768px) {
+  .growing-damage-hint span {
+    white-space: nowrap;
   }
 }

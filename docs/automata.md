@@ -10,6 +10,63 @@ All params are realtime unless marked *structural* (rebuilds the pipeline).
 
 ---
 
+## Growing Neural CA (`GrowingNeural`)
+
+The differentiable morphogenesis rule from
+[Growing Neural Cellular Automata](https://distill.pub/2020/growing-ca/).
+Every cell holds 16 channels by default: premultiplied RGB, alpha/liveness, and
+12 latent channels. Identity, Sobel-x, and Sobel-y perception feeds a shared
+`48 → 128 → 16` ReLU MLP. A random per-cell mask applies its output as a
+residual update.
+
+Unlike `Neural` network mode, `GrowingNeural` exactly applies both sides of the
+reference life rule. The neural candidate is one GPU phase; a second phase
+keeps it only where alpha was locally alive before and after the update.
+
+| Param | Default | Range | Notes |
+| --- | --- | --- | --- |
+| `fireRate` | 0.5 | 0–1 | independent probability that a cell updates |
+| `stepSize` | 1 | 0–2 | residual-update multiplier |
+| `aliveThreshold` | 0.1 | 0–1 | channel-3 liveness threshold |
+| `channels` | 16 | 4–32 | structural, normally 16 |
+| `hidden` | 128 | 1–256 | structural, normally 128 |
+
+Load the JSON-safe artifact produced by a trainer:
+
+```ts
+import { GrowingNeural } from "@cazala/automata";
+
+const artifact = await fetch("/models/regenerating-butterfly.json")
+  .then((response) => response.json());
+const automaton = GrowingNeural.fromArtifact(artifact);
+
+const snapshot = automaton.getWeights(); // deep-copying Float32Arrays
+const portable = automaton.getArtifact(); // safe to JSON.stringify
+automaton.setWeights(nextWeights); // same shape, no rebuild
+```
+
+The artifact is versioned and records the behavior as well as the four weight
+arrays. Matrices are row-major `[hidden][channels × 3]` and
+`[channels][hidden]`. Perception is interleaved like TensorFlow depthwise
+convolution output: `c0/identity, c0/Sobel-x, c0/Sobel-y, c1/identity, …`.
+
+**Seeding**: the center cell has RGB zero and alpha/latent channels set to one,
+matching the reference model. `clear` produces an all-zero grid.
+
+**Rendering**: channels are interpreted as premultiplied RGBA and composited
+over `colorBg`. A white `colorBg` matches the paper.
+
+**Official models**: download the reference `08000.json` graph export and run:
+
+```bash
+pnpm convert:growing-ca input/08000.json output/butterfly.json
+```
+
+The converter transposes TensorFlow's input-major 1×1 convolution kernels into
+the artifact's output-major matrices.
+
+---
+
 ## Neural (`Neural`)
 
 Neural cellular automata with two substrates, chosen by `mode`:

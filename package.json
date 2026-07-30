@@ -9,6 +9,7 @@
     "build:core": "pnpm --filter=@cazala/automata build",
     "build:playground": "pnpm --filter=@cazala/automata-playground build",
     "build:docs": "vitepress build docs",
+    "convert:growing-ca": "node scripts/convert-growing-ca-tfjs.mjs",
     "dev:docs": "vitepress dev docs",
     "test": "pnpm --filter=@cazala/automata test",
     "type-check": "pnpm --filter=@cazala/automata build && pnpm --filter=@cazala/automata-playground type-check"

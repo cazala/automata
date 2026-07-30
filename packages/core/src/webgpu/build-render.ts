@@ -12,6 +12,8 @@
  *              while distinct channel values still separate into hues
  * colorMode 2: raw rgb -> channels 0..2 displayed verbatim (cells carry their
  *              own palette, e.g. pokemon type colors / cyclic hue wheel)
+ * colorMode 3: premultiplied rgba -> channels 0..2 are premultiplied rgb and
+ *              channel 3 is alpha, composited over colorBg
  */
 
 export const RENDER_UNIFORM_SIZE = 96; // see layout below (24 * f32)
@@ -79,8 +81,14 @@ fn fs(@builtin(position) fragPos: vec4<f32>) -> @location(0) vec4<f32> {
     let v = clamp(vec3<f32>(r, g, b), vec3<f32>(0.0), vec3<f32>(1.0));
     if (ru.colorMode < 1.5) {
       col = vec4<f32>(mix(ru.colorOff.rgb, ru.colorOn.rgb, v), 1.0);
-    } else {
+    } else if (ru.colorMode < 2.5) {
       col = vec4<f32>(v, 1.0);
+    } else {
+      let alpha = select(1.0, clamp(cells[base + 3], 0.0, 1.0), ch > 3);
+      col = vec4<f32>(
+        clamp(v + (1.0 - alpha) * ru.colorBg.rgb, vec3<f32>(0.0), vec3<f32>(1.0)),
+        1.0
+      );
     }
   }
 

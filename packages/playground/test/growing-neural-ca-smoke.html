@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Growing Neural CA — official model verification</title>
+<style>
+  :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    margin: 0;
+    display: grid;
+    place-items: center;
+    color: #ecf7ff;
+    background:
+      radial-gradient(circle at 20% 10%, #173650 0, transparent 35rem),
+      #071018;
+  }
+  main { width: min(94vw, 860px); padding: 2rem 0; }
+  h1 { margin: 0 0 .5rem; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: -.055em; }
+  p { color: #9ab2c5; line-height: 1.55; }
+  .panel {
+    overflow: hidden;
+    border: 1px solid #294357;
+    border-radius: 24px;
+    background: rgba(8, 20, 29, .84);
+    box-shadow: 0 28px 90px #0008;
+  }
+  canvas { display: block; width: 100%; aspect-ratio: 1; image-rendering: pixelated; }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: center;
+    padding: 1rem;
+    border-top: 1px solid #294357;
+  }
+  button {
+    appearance: none;
+    border: 1px solid #42637a;
+    border-radius: 999px;
+    padding: .65rem 1rem;
+    color: inherit;
+    background: #102838;
+    cursor: pointer;
+  }
+  button:hover { background: #17384c; }
+  output { margin-left: auto; color: #7ee0b8; font: 500 .85rem ui-monospace, monospace; }
+  output[data-status="failed"] { color: #ff8796; }
+</style>
+<main>
+  <h1>Growing Neural CA</h1>
+  <p>
+    The official regenerating butterfly model is converted from Google
+    Research’s TensorFlow graph. Startup compares three deterministic
+    generations against an independent CPU implementation before beginning the
+    WebGPU simulation.
+  </p>
+  <section class="panel">
+    <canvas width="720" height="720" aria-label="Growing neural cellular automaton"></canvas>
+    <div class="toolbar">
+      <button id="damage" type="button">Damage</button>
+      <button id="reset" type="button">Reset</button>
+      <button id="toggle" type="button">Pause</button>
+      <output id="result">verifying…</output>
+    </div>
+  </section>
+</main>
+<script type="module">
+  import { Engine, GrowingNeural } from "@cazala/automata";
+
+  const canvas = document.querySelector("canvas");
+  const output = document.querySelector("#result");
+  const artifact = await fetch("../src/assets/growing-ca-butterfly.json").then((response) => {
+    if (!response.ok) throw new Error(`Model request failed: ${response.status}`);
+    return response.json();
+  });
+  const automaton = GrowingNeural.fromArtifact(artifact);
+  automaton.setFireRate(1);
+  const errors = [];
+  const engine = new Engine({
+    canvas,
+    automaton,
+    grid: { width: 9, height: 9, wrap: false, maxCells: 128 },
+    stepsPerSecond: 60,
+    render: { colorBg: { r: 1, g: 1, b: 1, a: 1 } },
+    onError(error) {
+      errors.push(error.message);
+      output.textContent = error.message;
+      output.dataset.status = "failed";
+    },
+  });
+  const sample = (state, size, channels, x, y, channel) => {
+    if (x < 0 || y < 0 || x >= size || y >= size) return 0;
+    return state[(y * size + x) * channels + channel];
+  };
+
+  function cpuStep(state, size, model) {
+    const { channels: C, hidden: H, weights } = model;
+    const P = C * 3;
+    const candidate = new Float32Array(state.length);
+    const preLife = new Uint8Array(size * size);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const cell = y * size + x;
+        let maxAlpha = 0;
+        for (let ay = -1; ay <= 1; ay++) {
+          for (let ax = -1; ax <= 1; ax++) {
+            maxAlpha = Math.max(maxAlpha, sample(state, size, C, x + ax, y + ay, 3));
+          }
+        }
+        preLife[cell] = maxAlpha > model.life.threshold ? 1 : 0;
+        const perception = new Float64Array(P);
+        for (let c = 0; c < C; c++) {
+          const at = (dx, dy) => sample(state, size, C, x + dx, y + dy, c);
+          const s00 = at(-1, -1), s10 = at(0, -1), s20 = at(1, -1);
+          const s01 = at(-1, 0), s11 = at(0, 0), s21 = at(1, 0);
+          const s02 = at(-1, 1), s12 = at(0, 1), s22 = at(1, 1);
+          perception[c * 3] = s11;
+          perception[c * 3 + 1] =
+            (s20 + 2 * s21 + s22 - s00 - 2 * s01 - s02) / 8;
+          perception[c * 3 + 2] =
+            (s02 + 2 * s12 + s22 - s00 - 2 * s10 - s20) / 8;
+        }
+        const delta = Float64Array.from(weights.outputBias);
+        for (let h = 0; h < H; h++) {
+          let value = weights.hiddenBias[h];
+          for (let k = 0; k < P; k++) {
+            value += weights.inputToHidden[h * P + k] * perception[k];
+          }
+          value = Math.max(value, 0);
+          for (let c = 0; c < C; c++) {
+            delta[c] += weights.hiddenToOutput[c * H + h] * value;
+          }
+        }
+        const base = cell * C;
+        for (let c = 0; c < C; c++) {
+          candidate[base + c] = state[base + c] + delta[c] * model.stepSize;
+        }
+      }
+    }
+    const next = new Float32Array(state.length);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const cell = y * size + x;
+        let maxAlpha = 0;
+        for (let ay = -1; ay <= 1; ay++) {
+          for (let ax = -1; ax <= 1; ax++) {
+            maxAlpha = Math.max(
+              maxAlpha,
+              sample(candidate, size, C, x + ax, y + ay, 3),
+            );
+          }
+        }
+        if (preLife[cell] && maxAlpha > model.life.threshold) {
+          const base = cell * C;
+          next.set(candidate.subarray(base, base + C), base);
+        }
+      }
+    }
+    return next;
+  }
+
+  try {
+    await engine.initialize();
+    engine.reset({ mode: "center" });
+    let expected = automaton.seed(9, 9, { mode: "center" });
+    const stepErrors = [];
+    let actual;
+    for (let step = 0; step < 3; step++) {
+      expected = cpuStep(expected, 9, artifact);
+      engine.step();
+      actual = await engine.getCells();
+      let stepError = 0;
+      for (let index = 0; index < actual.length; index++) {
+        stepError = Math.max(stepError, Math.abs(actual[index] - expected[index]));
+      }
+      stepErrors.push(stepError);
+    }
+    const maximumError = Math.max(...stepErrors);
+    if (maximumError > 2e-4 || errors.length > 0) {
+      throw new Error(
+        `CPU/WebGPU parity failed: ` +
+          `${stepErrors.map((value) => value.toExponential(2)).join(", ")}` +
+          (errors.length ? ` · ${errors[0]}` : ""),
+      );
+    }
+
+    automaton.setFireRate(artifact.fireRate);
+    engine.resize(72, 72);
+    engine.coverGrid();
+    engine.reset({ mode: "center" });
+    for (let step = 0; step < 96; step++) engine.step();
+    const grown = await engine.getCells();
+    let living = 0;
+    for (let cell = 0; cell < 72 * 72; cell++) {
+      if (grown[cell * artifact.channels + 3] > artifact.life.threshold) living++;
+    }
+    if (living < 100) {
+      throw new Error(`Official model did not grow: ${living} living cells`);
+    }
+
+    const countAliveCircle = (state, cx, cy, radius) => {
+      let count = 0;
+      for (let y = cy - radius; y <= cy + radius; y++) {
+        for (let x = cx - radius; x <= cx + radius; x++) {
+          if ((x - cx) ** 2 + (y - cy) ** 2 > radius ** 2) continue;
+          const alpha = state[(y * 72 + x) * artifact.channels + 3];
+          if (alpha > artifact.life.threshold) count++;
+        }
+      }
+      return count;
+    };
+    const baselineCenter = countAliveCircle(grown, 36, 36, 11);
+    engine.fillCircle(36, 36, 11, []);
+    const damaged = await engine.getCells();
+    const damagedCenter = countAliveCircle(damaged, 36, 36, 11);
+    for (let step = 0; step < 180; step++) engine.step();
+    const regenerated = await engine.getCells();
+    const recoveredCenter = countAliveCircle(regenerated, 36, 36, 11);
+    if (
+      damagedCenter !== 0 ||
+      recoveredCenter < Math.max(40, baselineCenter * 0.75)
+    ) {
+      throw new Error(
+        `Regeneration failed: ${damagedCenter} cells after damage, ` +
+          `${recoveredCenter}/${baselineCenter} recovered`,
+      );
+    }
+
+    output.textContent =
+      `passed · max Δ ${maximumError.toExponential(2)} · ` +
+      `${recoveredCenter}/${baselineCenter} center cells regenerated`;
+    output.dataset.status = "passed";
+    engine.play();
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+    output.dataset.status = "failed";
+  }
+
+  document.querySelector("#damage").addEventListener("click", () => {
+    engine.fillCircle(36, 36, 11, []);
+  });
+  document.querySelector("#reset").addEventListener("click", () => {
+    engine.reset({ mode: "center" });
+  });
+  document.querySelector("#toggle").addEventListener("click", (event) => {
+    engine.toggle();
+    event.currentTarget.textContent = engine.isPlaying() ? "Pause" : "Play";
+  });
+  addEventListener("beforeunload", () => engine.destroy(), { once: true });
+</script>
+</html>

@@ -9,12 +9,15 @@ export type {
 export { Automaton, createAutomaton } from "./automaton";
 export type {
   AutomatonDescriptor,
+  AutomatonPhase,
+  BoundaryMode,
   CustomAutomatonOptions,
   ParamSpec,
   ParamType,
   RenderHints,
   SeedMode,
   SeedOptions,
+  ScratchSpec,
   StorageSpec,
 } from "./automaton";
 

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Info, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Eraser, Info, Pause, Play, RotateCcw } from "lucide-react";
 import {
   countsToMask,
   Elementary,
@@ -52,7 +52,7 @@ const AUTOMATON_HELP: Record<AutomatonType, ChoiceHelp> = {
   neural: {
     title: "Neural",
     description:
-      "A neural cellular automaton that uses local convolutions to update each cell from its neighbors, producing self-organizing worms, mosaics, and other organic textures.",
+      "Neural cellular automata use local learned or designed updates to turn neighbor information into self-organizing textures and regenerating forms.",
   },
   pokemon: {
     title: "Pokemon",
@@ -343,6 +343,7 @@ export function Sidebar() {
   const dispatch = useAppDispatch();
   const engine = useEngine();
   const config = useAppSelector((s) => s.config);
+  const playing = useAppSelector((s) => s.ui.playing);
 
   // Mobile bottom-sheet state: on small screens the sidebar is a fixed sheet
   // showing only its handle; tap or drag the handle to open/close. Desktop
@@ -356,6 +357,29 @@ export function Sidebar() {
     range: number;
     moved: boolean;
   } | null>(null);
+
+  const syncGrowingViewport = useCallback(
+    (open = sheetOpen) => {
+      const el = sheetRef.current;
+      if (!el || !window.matchMedia("(max-width: 768px)").matches) {
+        engine.setGrowingViewportHeight(undefined);
+        return;
+      }
+      engine.setGrowingViewportHeight(
+        open
+          ? window.innerHeight - el.getBoundingClientRect().height
+          : window.innerHeight - SHEET_HANDLE_PX
+      );
+    },
+    [engine, sheetOpen]
+  );
+
+  useEffect(() => {
+    syncGrowingViewport();
+    const onResize = () => syncGrowingViewport();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [config.type, config.neural.preset, syncGrowingViewport]);
 
   const onHandlePointerDown = (e: React.PointerEvent) => {
     const el = sheetRef.current;
@@ -381,6 +405,7 @@ export function Sidebar() {
     const dy = e.clientY - d.startY;
     if (Math.abs(dy) > 6) d.moved = true;
     el.style.transform = `translateY(${clampTranslate(d, dy)}px)`;
+    engine.setGrowingViewportHeight(el.getBoundingClientRect().top);
   };
 
   // A tap on the handle also produces a synthetic click a few ms after
@@ -409,14 +434,18 @@ export function Sidebar() {
     el.style.transform = "";
     suppressGhostClick();
     if (!d.moved) {
-      setSheetOpen((open) => !open); // tap toggles
+      const nextOpen = !sheetOpen;
+      setSheetOpen(nextOpen); // tap toggles
+      syncGrowingViewport(nextOpen);
     } else {
       // Commit once dragged a quarter of the travel away from the starting
       // position (half the old midpoint rule); shorter drags snap back.
       const settled = clampTranslate(d, e.clientY - d.startY);
       const wasOpen = d.startTranslate === 0;
       const commit = Math.abs(settled - d.startTranslate) > d.range / 4;
-      setSheetOpen(commit ? !wasOpen : wasOpen);
+      const nextOpen = commit ? !wasOpen : wasOpen;
+      setSheetOpen(nextOpen);
+      syncGrowingViewport(nextOpen);
     }
   };
 
@@ -613,63 +642,103 @@ export function Sidebar() {
 
         {config.type === "neural" && (
           <>
-            {config.neural.activation === ACTIVATION_GAUSSIAN && (
-              <Slider
-                label="Gaussian width"
-                value={config.neural.gaussWidth}
-                onChange={(v) => dispatch(setNeural({ gaussWidth: v }))}
-                min={0.6}
-                max={0.7}
-                step={0.01}
-                formatValue={(v) => v.toFixed(2)}
-              />
-            )}
-            <Slider
-              label="Kernel center"
-              value={config.neural.kCenter}
-              onChange={(v) => dispatch(setNeural({ kCenter: v }))}
-              min={-1}
-              max={-0.5}
-              step={0.01}
-              formatValue={(v) => v.toFixed(2)}
-            />
-            <Slider
-              label="Kernel edge"
-              value={config.neural.kEdge}
-              onChange={(v) => dispatch(setNeural({ kEdge: v }))}
-              min={-1.5}
-              max={-0.9}
-              step={0.01}
-              formatValue={(v) => v.toFixed(2)}
-            />
-            <Slider
-              label="Kernel corner"
-              value={config.neural.kCorner}
-              onChange={(v) => dispatch(setNeural({ kCorner: v }))}
-              min={0.4}
-              max={0.7}
-              step={0.01}
-              formatValue={(v) => v.toFixed(2)}
-            />
-            <KernelPreview
-              center={config.neural.kCenter}
-              edge={config.neural.kEdge}
-              corner={config.neural.kCorner}
-            />
-            <Button
-              className="sidebar-inline-action"
-              onClick={() =>
+            <ChoiceGroup
+              label="Neural model"
+              value={config.neural.preset}
+              onChange={(preset) =>
                 dispatch(
                   setNeural({
-                    kCenter: WORMS_KERNEL.center,
-                    kEdge: WORMS_KERNEL.edge,
-                    kCorner: WORMS_KERNEL.corner,
+                    preset: preset as "worms" | "butterfly",
                   })
                 )
               }
-            >
-              Reset kernel
-            </Button>
+              className="neural-model-choice"
+              options={[
+                { value: "worms", label: "Procedural" },
+                { value: "butterfly", label: "Pre-trained" },
+              ]}
+            />
+
+            {config.neural.preset === "butterfly" ? (
+              <div className="growing-controls" aria-label="Butterfly controls">
+                <Button onClick={() => engine.damage()} title="Damage the butterfly">
+                  <Eraser size={15} />
+                  Damage
+                </Button>
+                <Button onClick={() => engine.reset()} title="Regrow from one cell">
+                  <RotateCcw size={15} />
+                  Reset
+                </Button>
+                <Button
+                  onClick={() => engine.toggle()}
+                  active={!playing}
+                  title={playing ? "Pause growth" : "Resume growth"}
+                >
+                  {playing ? <Pause size={15} /> : <Play size={15} />}
+                  {playing ? "Pause" : "Resume"}
+                </Button>
+              </div>
+            ) : (
+              <>
+                {config.neural.activation === ACTIVATION_GAUSSIAN && (
+                  <Slider
+                    label="Gaussian width"
+                    value={config.neural.gaussWidth}
+                    onChange={(v) => dispatch(setNeural({ gaussWidth: v }))}
+                    min={0.6}
+                    max={0.7}
+                    step={0.01}
+                    formatValue={(v) => v.toFixed(2)}
+                  />
+                )}
+                <Slider
+                  label="Kernel center"
+                  value={config.neural.kCenter}
+                  onChange={(v) => dispatch(setNeural({ kCenter: v }))}
+                  min={-1}
+                  max={-0.5}
+                  step={0.01}
+                  formatValue={(v) => v.toFixed(2)}
+                />
+                <Slider
+                  label="Kernel edge"
+                  value={config.neural.kEdge}
+                  onChange={(v) => dispatch(setNeural({ kEdge: v }))}
+                  min={-1.5}
+                  max={-0.9}
+                  step={0.01}
+                  formatValue={(v) => v.toFixed(2)}
+                />
+                <Slider
+                  label="Kernel corner"
+                  value={config.neural.kCorner}
+                  onChange={(v) => dispatch(setNeural({ kCorner: v }))}
+                  min={0.4}
+                  max={0.7}
+                  step={0.01}
+                  formatValue={(v) => v.toFixed(2)}
+                />
+                <KernelPreview
+                  center={config.neural.kCenter}
+                  edge={config.neural.kEdge}
+                  corner={config.neural.kCorner}
+                />
+                <Button
+                  className="sidebar-inline-action"
+                  onClick={() =>
+                    dispatch(
+                      setNeural({
+                        kCenter: WORMS_KERNEL.center,
+                        kEdge: WORMS_KERNEL.edge,
+                        kCorner: WORMS_KERNEL.corner,
+                      })
+                    )
+                  }
+                >
+                  Reset kernel
+                </Button>
+              </>
+            )}
           </>
         )}
 
