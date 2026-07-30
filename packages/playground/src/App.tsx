@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Provider } from "react-redux";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, X } from "lucide-react";
 import { store, useAppDispatch, useAppSelector } from "./store";
 import { EngineProvider, useEngine } from "./engine/EngineProvider";
 import { Canvas } from "./components/Canvas";
@@ -23,6 +23,7 @@ function AppContent() {
   const engine = useEngine();
   const [showHomepage, setShowHomepage] = useState(isHomepage);
   const [isEnteringPlayground, setIsEnteringPlayground] = useState(false);
+  const [growingHintDismissed, setGrowingHintDismissed] = useState(false);
   const transitionTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -35,6 +36,10 @@ function AppContent() {
       setIsEnteringPlayground(false);
     }
   }, [isHomepage]);
+
+  useEffect(() => {
+    if (!showGrowingHint) setGrowingHintDismissed(false);
+  }, [showGrowingHint]);
 
   useEffect(() => {
     return () => {
@@ -79,9 +84,18 @@ function AppContent() {
       <div className="app-content">
         <div className="canvas-container">
           <Canvas />
-          {!showHomepage && showGrowingHint && (
+          {!showHomepage && showGrowingHint && !growingHintDismissed && (
             <div className="growing-damage-hint" role="note">
-              Click or drag across the butterfly
+              <span>Click or drag across the butterfly</span>
+              <button
+                type="button"
+                className="growing-hint-close"
+                onClick={() => setGrowingHintDismissed(true)}
+                aria-label="Dismiss damage hint"
+                title="Dismiss hint"
+              >
+                <X size={14} strokeWidth={2.25} />
+              </button>
             </div>
           )}
           {!showHomepage && (
