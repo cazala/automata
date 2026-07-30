@@ -1,4 +1,5 @@
 .app {
+  --desktop-sidebar-width: 320px;
   position: relative;
   width: 100%;
   height: 100vh;
@@ -31,7 +32,8 @@
 .growing-damage-hint {
   position: absolute;
   top: 18px;
-  left: 50%;
+  left: 0;
+  right: var(--desktop-sidebar-width);
   z-index: 500;
   display: flex;
   align-items: center;
@@ -47,7 +49,8 @@
   line-height: 1.35;
   text-align: center;
   pointer-events: none;
-  transform: translateX(-50%);
+  width: max-content;
+  margin-inline: auto;
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   animation: growing-hint-in 300ms ease-out both;
@@ -60,12 +63,12 @@
 @keyframes growing-hint-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -5px);
+    transform: translateY(-5px);
   }
 
   to {
     opacity: 1;
-    transform: translate(-50%, 0);
+    transform: translateY(0);
   }
 }
 
@@ -99,6 +102,7 @@ body {
     top: calc(14px + env(safe-area-inset-top));
     left: 14px;
     right: auto;
+    margin-inline: 0;
     box-sizing: border-box;
     width: max-content;
     max-width: calc(100% - 76px);
