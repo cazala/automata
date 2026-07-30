@@ -45,6 +45,7 @@ interface EngineApi {
   zoomAt: (factor: number, cx: number, cy: number) => void;
   panBy: (dxCss: number, dyCss: number) => void;
   resizeCanvas: (cssW: number, cssH: number) => void;
+  setGrowingViewportHeight: (visibleHeight?: number) => void;
   resetView: () => void;
 }
 
@@ -75,6 +76,26 @@ const BUTTERFLY_ARTIFACT = JSON.parse(
 
 function isGrowingNeural(config: ConfigState): boolean {
   return config.type === "neural" && config.neural.preset === "butterfly";
+}
+
+/** Fit the square Growing-NCA grid inside the unobscured top of the canvas. */
+function fitGrowingToViewport(
+  engine: Engine,
+  requestedVisibleHeight?: number
+): void {
+  const size = engine.getSize();
+  const grid = engine.getGridSize();
+  const visibleHeight = Math.max(
+    1,
+    Math.min(size.height, requestedVisibleHeight ?? size.height)
+  );
+  const zoom =
+    Math.min(size.width / grid.width, visibleHeight / grid.height) * 0.9;
+  engine.setZoom(zoom);
+  engine.setCamera(
+    grid.width / 2,
+    grid.height / 2 + (size.height - visibleHeight) / (2 * zoom)
+  );
 }
 
 const clampCells = (n: number) =>
@@ -181,6 +202,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
 
   const engineRef = useRef<Engine | null>(null);
   const automatonRef = useRef<Automaton | null>(null);
+  const growingViewportHeightRef = useRef<number | undefined>(undefined);
   // Synchronous guard against React StrictMode double-invoking init before the
   // async initialize() resolves and sets engineRef.
   const initStarted = useRef(false);
@@ -233,8 +255,9 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
       // On touch devices the boot view is the max zoom-out: pinching can only
       // zoom in, so the grid never grows past what a phone GPU handles.
       engine.setCoverMinZoom(isMobileDevice() && !isGrowingNeural(cfg));
-      if (isGrowingNeural(cfg)) engine.fitToGrid();
-      else engine.coverGrid();
+      if (isGrowingNeural(cfg)) {
+        fitGrowingToViewport(engine, growingViewportHeightRef.current);
+      } else engine.coverGrid();
       applyInit();
       // Start a live demo behind the homepage overlay.
       engine.play();
@@ -367,8 +390,17 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     const engine = engineRef.current;
     if (!engine || cssW <= 0 || cssH <= 0) return;
     engine.setSize(cssW, cssH);
-    if (isGrowingNeural(configRef.current)) engine.fitToGrid();
-    else engine.ensureGridCovers();
+    if (isGrowingNeural(configRef.current)) {
+      fitGrowingToViewport(engine, growingViewportHeightRef.current);
+    } else engine.ensureGridCovers();
+  }, []);
+
+  const setGrowingViewportHeight = useCallback((visibleHeight?: number) => {
+    growingViewportHeightRef.current = visibleHeight;
+    const engine = engineRef.current;
+    if (engine && isGrowingNeural(configRef.current)) {
+      fitGrowingToViewport(engine, visibleHeight);
+    }
   }, []);
 
   // ---- config -> engine sync (dual-write realtime) --------------------------
@@ -390,8 +422,9 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     if (current.width !== grid.width || current.height !== grid.height) {
       engine.resize(grid.width, grid.height);
     }
-    if (isGrowingNeural(cfg)) engine.fitToGrid();
-    else engine.coverGrid();
+    if (isGrowingNeural(cfg)) {
+      fitGrowingToViewport(engine, growingViewportHeightRef.current);
+    } else engine.coverGrid();
     applyInit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.type, config.neural.preset]);
@@ -592,6 +625,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     handleWheel,
     panBy,
     resizeCanvas,
+    setGrowingViewportHeight,
     resetView,
     zoomAt,
   };

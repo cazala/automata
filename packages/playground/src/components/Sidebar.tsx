@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Eraser, Info, Pause, Play, RotateCcw } from "lucide-react";
 import {
   countsToMask,
@@ -358,6 +358,29 @@ export function Sidebar() {
     moved: boolean;
   } | null>(null);
 
+  const syncGrowingViewport = useCallback(
+    (open = sheetOpen) => {
+      const el = sheetRef.current;
+      if (!el || !window.matchMedia("(max-width: 768px)").matches) {
+        engine.setGrowingViewportHeight(undefined);
+        return;
+      }
+      engine.setGrowingViewportHeight(
+        open
+          ? window.innerHeight - el.getBoundingClientRect().height
+          : window.innerHeight - SHEET_HANDLE_PX
+      );
+    },
+    [engine, sheetOpen]
+  );
+
+  useEffect(() => {
+    syncGrowingViewport();
+    const onResize = () => syncGrowingViewport();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [config.type, config.neural.preset, syncGrowingViewport]);
+
   const onHandlePointerDown = (e: React.PointerEvent) => {
     const el = sheetRef.current;
     if (!el) return;
@@ -382,6 +405,7 @@ export function Sidebar() {
     const dy = e.clientY - d.startY;
     if (Math.abs(dy) > 6) d.moved = true;
     el.style.transform = `translateY(${clampTranslate(d, dy)}px)`;
+    engine.setGrowingViewportHeight(el.getBoundingClientRect().top);
   };
 
   // A tap on the handle also produces a synthetic click a few ms after
@@ -410,14 +434,18 @@ export function Sidebar() {
     el.style.transform = "";
     suppressGhostClick();
     if (!d.moved) {
-      setSheetOpen((open) => !open); // tap toggles
+      const nextOpen = !sheetOpen;
+      setSheetOpen(nextOpen); // tap toggles
+      syncGrowingViewport(nextOpen);
     } else {
       // Commit once dragged a quarter of the travel away from the starting
       // position (half the old midpoint rule); shorter drags snap back.
       const settled = clampTranslate(d, e.clientY - d.startY);
       const wasOpen = d.startTranslate === 0;
       const commit = Math.abs(settled - d.startTranslate) > d.range / 4;
-      setSheetOpen(commit ? !wasOpen : wasOpen);
+      const nextOpen = commit ? !wasOpen : wasOpen;
+      setSheetOpen(nextOpen);
+      syncGrowingViewport(nextOpen);
     }
   };
 
@@ -626,8 +654,8 @@ export function Sidebar() {
               }
               className="neural-model-choice"
               options={[
-                { value: "worms", label: "Worms" },
-                { value: "butterfly", label: "Growing butterfly" },
+                { value: "worms", label: "Procedural" },
+                { value: "butterfly", label: "Pre-trained" },
               ]}
             />
 
