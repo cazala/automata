@@ -81,8 +81,7 @@ function AppContent() {
           <Canvas />
           {!showHomepage && showGrowingHint && (
             <div className="growing-damage-hint" role="note">
-              Click or drag across the butterfly to damage it — then watch it
-              regenerate.
+              Click or drag across the butterfly
             </div>
           )}
           {!showHomepage && (
