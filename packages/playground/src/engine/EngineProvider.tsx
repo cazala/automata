@@ -36,7 +36,6 @@ interface EngineApi {
   toggle: () => void;
   step: () => void;
   reset: () => void;
-  damage: () => void;
   clear: () => void;
   applyInit: () => void;
   eraseAt: (worldX: number, worldY: number) => void;
@@ -72,8 +71,7 @@ const MAX_CELLS = 2048;
 const DEFAULT_CELL_PX = 1.5;
 const REACTION_CELL_PX = 1;
 const GROWING_GRID_SIZE = 72;
-const GROWING_DAMAGE_RADIUS = 11;
-const GROWING_POINTER_DAMAGE_RADIUS = GROWING_DAMAGE_RADIUS / 2;
+const GROWING_POINTER_DAMAGE_RADIUS = 5.5;
 const BUTTERFLY_ARTIFACT = JSON.parse(
   butterflyArtifactJson
 ) as GrowingNeuralArtifact;
@@ -318,18 +316,6 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
   const reset = useCallback(() => {
     applyInit();
   }, [applyInit]);
-
-  const damage = useCallback(() => {
-    const engine = engineRef.current;
-    if (!engine || !isGrowingNeural(configRef.current)) return;
-    const grid = engine.getGridSize();
-    engine.fillCircle(
-      grid.width / 2,
-      grid.height / 2,
-      GROWING_DAMAGE_RADIUS,
-      new Array(engine.getChannels()).fill(0)
-    );
-  }, []);
 
   const resetView = useCallback(() => {
     engineRef.current?.coverGrid();
@@ -647,7 +633,6 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     toggle,
     step,
     reset,
-    damage,
     clear,
     applyInit,
     eraseAt,

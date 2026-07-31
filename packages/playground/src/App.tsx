@@ -1,26 +1,75 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Provider } from "react-redux";
+import { BrowserRouter, useLocation, useNavigate } from "react-router-dom";
 import { RotateCcw, X } from "lucide-react";
 import { store, useAppDispatch, useAppSelector } from "./store";
 import { EngineProvider, useEngine } from "./engine/EngineProvider";
 import { Canvas } from "./components/Canvas";
 import { Sidebar } from "./components/Sidebar";
 import { Homepage } from "./components/Homepage";
-import { setHomepage } from "./store/uiSlice";
+import { requestInit, setHomepage } from "./store/uiSlice";
+import {
+  configActionsForSelection,
+  parseRoutePath,
+  pathForAutomaton,
+  selectionMatchesConfig,
+} from "./routing";
 import { isWebGPUAvailable } from "./utils/deviceCapabilities";
 import "./App.css";
 
 const HOMEPAGE_EXIT_MS = 720;
+const ROUTER_BASENAME =
+  import.meta.env.BASE_URL === "/"
+    ? "/"
+    : import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function RouteSynchronizer() {
+  const dispatch = useAppDispatch();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useLayoutEffect(() => {
+    const route = parseRoutePath(location.pathname);
+    if (route.kind === "invalid") {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    const before = store.getState();
+    if (route.kind === "home") {
+      if (!before.ui.isHomepage) dispatch(setHomepage(true));
+      return;
+    }
+
+    if (!selectionMatchesConfig(route.selection, before.config)) {
+      for (const action of configActionsForSelection(route.selection)) {
+        dispatch(action);
+      }
+      // Life presets can share one core implementation, so a preset-only route
+      // change also needs an explicit reseed after updating its soup density.
+      if (before.config.type === "life" && route.selection.type === "life") {
+        dispatch(requestInit());
+      }
+    }
+    if (before.ui.isHomepage) dispatch(setHomepage(false));
+    if (location.pathname !== route.canonicalPath) {
+      navigate(route.canonicalPath, { replace: true });
+    }
+  }, [dispatch, location.key, location.pathname, navigate]);
+
+  return null;
+}
 
 function AppContent() {
-  const dispatch = useAppDispatch();
   const isHomepage = useAppSelector((s) => s.ui.isHomepage);
+  const config = useAppSelector((s) => s.config);
   const showGrowingHint = useAppSelector(
     (s) =>
       s.config.type === "neural" &&
       s.config.neural.preset === "butterfly"
   );
   const engine = useEngine();
+  const navigate = useNavigate();
   const [showHomepage, setShowHomepage] = useState(isHomepage);
   const [isEnteringPlayground, setIsEnteringPlayground] = useState(false);
   const [growingHintDismissed, setGrowingHintDismissed] = useState(false);
@@ -54,7 +103,7 @@ function AppContent() {
     setShowHomepage(true);
     setIsEnteringPlayground(true);
     transitionTimer.current = window.setTimeout(() => {
-      dispatch(setHomepage(false));
+      navigate(pathForAutomaton(config.type, config));
       setShowHomepage(false);
       setIsEnteringPlayground(false);
       transitionTimer.current = null;
@@ -118,10 +167,13 @@ function AppContent() {
 
 export function App() {
   return (
-    <Provider store={store}>
-      <EngineProvider>
-        <AppContent />
-      </EngineProvider>
-    </Provider>
+    <BrowserRouter basename={ROUTER_BASENAME}>
+      <Provider store={store}>
+        <RouteSynchronizer />
+        <EngineProvider>
+          <AppContent />
+        </EngineProvider>
+      </Provider>
+    </BrowserRouter>
   );
 }
