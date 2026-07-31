@@ -167,12 +167,33 @@ export function parseRoutePath(pathname: string): AppRoute {
     : { kind: "invalid" };
 }
 
+function normalizedRouterBase(base: string): string {
+  if (!base || base === "/") return "";
+  return `/${base.replace(/^\/+|\/+$/g, "")}`;
+}
+
+/**
+ * Use Vite's configured base only when the current host is actually mounted
+ * there. Production lives at /automata, while Cloudflare preview deployments
+ * expose the same build artifact at both the origin root and /automata.
+ */
+export function routerBasenameForLocation(
+  pathname: string,
+  base = import.meta.env.BASE_URL
+): string {
+  const normalizedBase = normalizedRouterBase(base);
+  if (!normalizedBase) return "/";
+  return pathname === normalizedBase || pathname.startsWith(`${normalizedBase}/`)
+    ? normalizedBase
+    : "/";
+}
+
 /** Remove Vite's deployment base before parsing the initial browser URL. */
 export function routePathFromLocation(
   pathname: string,
   base = import.meta.env.BASE_URL
 ): string {
-  const normalizedBase = base === "/" ? "" : base.replace(/\/+$/, "");
+  const normalizedBase = normalizedRouterBase(base);
   if (!normalizedBase) return pathname;
   if (pathname === normalizedBase) return "/";
   return pathname.startsWith(`${normalizedBase}/`)

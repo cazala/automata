@@ -12,16 +12,14 @@ import {
   configActionsForSelection,
   parseRoutePath,
   pathForAutomaton,
+  routerBasenameForLocation,
   selectionMatchesConfig,
 } from "./routing";
 import { isWebGPUAvailable } from "./utils/deviceCapabilities";
 import "./App.css";
 
 const HOMEPAGE_EXIT_MS = 720;
-const ROUTER_BASENAME =
-  import.meta.env.BASE_URL === "/"
-    ? "/"
-    : import.meta.env.BASE_URL.replace(/\/$/, "");
+const ROUTER_BASENAME = routerBasenameForLocation(window.location.pathname);
 
 function RouteSynchronizer() {
   const dispatch = useAppDispatch();
