@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eraser, Info, Pause, Play, RotateCcw } from "lucide-react";
+import { ExternalLink, Info, RotateCcw } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   countsToMask,
   Elementary,
@@ -15,7 +16,6 @@ import {
 import { useEngine } from "../engine/EngineProvider";
 import { useAppDispatch, useAppSelector } from "../store";
 import {
-  setType,
   setLife,
   setElementaryRule,
   setNeural,
@@ -23,13 +23,17 @@ import {
   togglePokemonType,
   setRD,
   setLenia,
-  setInit,
   ACTIVATION_GAUSSIAN,
   LIFE_PRESETS,
   EXPANDED_LIFE_PRESETS,
   type AutomatonType,
 } from "../store/configSlice";
 import { requestInit } from "../store/uiSlice";
+import {
+  lifePresetForConfig,
+  pathForAutomaton,
+  pathForSelection,
+} from "../routing";
 import { Slider } from "./ui/Slider";
 import { Button } from "./ui/Button";
 import { Field } from "./ui/Field";
@@ -41,6 +45,7 @@ const ELEMENTARY_PRESETS = Elementary.PRESETS;
 interface ChoiceOption {
   value: string;
   label: string;
+  to: string;
 }
 
 interface ChoiceHelp {
@@ -85,14 +90,12 @@ function ChoiceGroup({
   label,
   value,
   options,
-  onChange,
   className = "",
   help,
 }: {
   label: string;
   value: string;
   options: ChoiceOption[];
-  onChange: (value: string) => void;
   className?: string;
   help?: ChoiceHelp;
 }) {
@@ -101,14 +104,14 @@ function ChoiceGroup({
       <label>{label}</label>
       <div className="choice-grid">
         {options.map((option) => (
-          <button
+          <Link
             key={option.value}
             className={`choice-button ${value === option.value ? "active" : ""}`}
-            onClick={() => onChange(option.value)}
-            type="button"
+            to={option.to}
+            aria-current={value === option.value ? "page" : undefined}
           >
             {option.label}
-          </button>
+          </Link>
         ))}
       </div>
       {help && (
@@ -343,7 +346,6 @@ export function Sidebar() {
   const dispatch = useAppDispatch();
   const engine = useEngine();
   const config = useAppSelector((s) => s.config);
-  const playing = useAppSelector((s) => s.ui.playing);
 
   // Mobile bottom-sheet state: on small screens the sidebar is a fixed sheet
   // showing only its handle; tap or drag the handle to open/close. Desktop
@@ -453,22 +455,7 @@ export function Sidebar() {
     }
   };
 
-  const lifePresetValue =
-    config.life.mode === "classic"
-      ? Object.entries(LIFE_PRESETS).find(
-          ([, p]) =>
-            countsToMask(p.birth) === config.life.birth &&
-            countsToMask(p.survival) === config.life.survival
-        )?.[0] ?? "custom"
-      : Object.entries(EXPANDED_LIFE_PRESETS).find(
-          ([, p]) =>
-            p.radius === config.life.radius &&
-            p.states === config.life.states &&
-            p.birth.min === config.life.birthMin &&
-            p.birth.max === config.life.birthMax &&
-            p.survival.min === config.life.survivalMin &&
-            p.survival.max === config.life.survivalMax
-        )?.[0] ?? "custom";
+  const lifePresetValue = lifePresetForConfig(config) ?? "custom";
   const expandedLifeMaxNeighbors = largerThanLifeNeighborCount(
     config.life.radius
   );
@@ -493,16 +480,39 @@ export function Sidebar() {
         <ChoiceGroup
           label="Automaton"
           value={config.type}
-          onChange={(v) => dispatch(setType(v as AutomatonType))}
           className="automaton-choice"
           help={AUTOMATON_HELP[config.type]}
           options={[
-            { value: "neural", label: "Neural" },
-            { value: "pokemon", label: "Pokemon" },
-            { value: "rd", label: "Reaction" },
-            { value: "lenia", label: "Lenia" },
-            { value: "life", label: "Life" },
-            { value: "elementary", label: "Elementary" },
+            {
+              value: "neural",
+              label: "Neural",
+              to: pathForAutomaton("neural", config),
+            },
+            {
+              value: "pokemon",
+              label: "Pokemon",
+              to: pathForAutomaton("pokemon", config),
+            },
+            {
+              value: "rd",
+              label: "Reaction",
+              to: pathForAutomaton("rd", config),
+            },
+            {
+              value: "lenia",
+              label: "Lenia",
+              to: pathForAutomaton("lenia", config),
+            },
+            {
+              value: "life",
+              label: "Life",
+              to: pathForAutomaton("life", config),
+            },
+            {
+              value: "elementary",
+              label: "Elementary",
+              to: pathForAutomaton("elementary", config),
+            },
           ]}
         />
 
@@ -511,49 +521,16 @@ export function Sidebar() {
             <ChoiceGroup
               label="Preset"
               value={lifePresetValue}
-              onChange={(v) => {
-                const classic = LIFE_PRESETS[v];
-                if (classic) {
-                  dispatch(
-                    setLife({
-                      mode: "classic",
-                      birth: countsToMask(classic.birth),
-                      survival: countsToMask(classic.survival),
-                    })
-                  );
-                  dispatch(
-                    setInit({ mode: "random", density: classic.density })
-                  );
-                  dispatch(requestInit());
-                  return;
-                }
-
-                const expanded = EXPANDED_LIFE_PRESETS[v];
-                if (!expanded) return;
-                dispatch(
-                  setLife({
-                    mode: "larger",
-                    radius: expanded.radius,
-                    states: expanded.states,
-                    birthMin: expanded.birth.min,
-                    birthMax: expanded.birth.max,
-                    survivalMin: expanded.survival.min,
-                    survivalMax: expanded.survival.max,
-                  })
-                );
-                dispatch(
-                  setInit({ mode: "random", density: expanded.density })
-                );
-                dispatch(requestInit());
-              }}
               options={[
                 ...Object.entries(LIFE_PRESETS).map(([value, p]) => ({
                   value,
                   label: p.label,
+                  to: pathForSelection({ type: "life", preset: value }),
                 })),
                 ...Object.entries(EXPANDED_LIFE_PRESETS).map(([value, p]) => ({
                   value,
                   label: p.label,
+                  to: pathForSelection({ type: "life", preset: value }),
                 })),
               ]}
             />
@@ -635,10 +612,10 @@ export function Sidebar() {
             <ChoiceGroup
               label="Preset"
               value={String(config.elementary.rule)}
-              onChange={(v) => dispatch(setElementaryRule(parseInt(v)))}
               options={ELEMENTARY_PRESETS.map((r) => ({
                 value: String(r),
                 label: `Rule ${r}`,
+                to: pathForSelection({ type: "elementary", rule: r }),
               }))}
             />
           </>
@@ -649,38 +626,40 @@ export function Sidebar() {
             <ChoiceGroup
               label="Neural model"
               value={config.neural.preset}
-              onChange={(preset) =>
-                dispatch(
-                  setNeural({
-                    preset: preset as "worms" | "butterfly",
-                  })
-                )
-              }
               className="neural-model-choice"
               options={[
-                { value: "worms", label: "Procedural" },
-                { value: "butterfly", label: "Pre-trained" },
+                {
+                  value: "worms",
+                  label: "Procedural",
+                  to: pathForSelection({ type: "neural", preset: "worms" }),
+                },
+                {
+                  value: "butterfly",
+                  label: "Pre-trained",
+                  to: pathForSelection({
+                    type: "neural",
+                    preset: "butterfly",
+                  }),
+                },
               ]}
             />
 
             {config.neural.preset === "butterfly" ? (
-              <div className="growing-controls" aria-label="Butterfly controls">
-                <Button onClick={() => engine.damage()} title="Damage the butterfly">
-                  <Eraser size={15} />
-                  Damage
-                </Button>
-                <Button onClick={() => engine.reset()} title="Regrow from one cell">
-                  <RotateCcw size={15} />
-                  Reset
-                </Button>
-                <Button
-                  onClick={() => engine.toggle()}
-                  active={!playing}
-                  title={playing ? "Pause growth" : "Resume growth"}
-                >
-                  {playing ? <Pause size={15} /> : <Play size={15} />}
-                  {playing ? "Pause" : "Resume"}
-                </Button>
+              <div className="model-attribution" role="note">
+                <span className="model-attribution-label">Model weights</span>
+                <p>
+                  The butterfly uses Google Research&apos;s official regenerating
+                  model weights from{" "}
+                  <a
+                    href="https://distill.pub/2020/growing-ca/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Growing Neural Cellular Automata
+                    <ExternalLink size={12} aria-hidden="true" />
+                  </a>
+                  .
+                </p>
               </div>
             ) : (
               <>
