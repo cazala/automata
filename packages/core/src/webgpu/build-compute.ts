@@ -113,6 +113,21 @@ ${retainedBindings.join("\n")}
     return;
   }`
       : "";
+  // Zero padding is structural, so specialize it into the generated shader.
+  // Keeping this as a runtime branch inside sampleAt() penalizes every sample
+  // made by wrap/clamp automata, even though they can never take that path.
+  const sampleAt = desc.boundary === "zero"
+    ? `fn sampleAt(x: i32, y: i32, c: i32) -> f32 {
+  if (x < 0 || y < 0 || x >= i32(sim.width) || y >= i32(sim.height)) {
+    return 0.0;
+  }
+  return src[cellBase(x, y) + c];
+}`
+    : `fn sampleAt(x: i32, y: i32, c: i32) -> f32 {
+  let sx = wrapCoord(x, i32(sim.width));
+  let sy = wrapCoord(y, i32(sim.height));
+  return src[cellBase(sx, sy) + c];
+}`;
 
   const code = /* wgsl */ `
 ${SIM_STRUCT}
@@ -135,16 +150,7 @@ fn wrapCoord(v: i32, n: i32) -> i32 {
   return clamp(v, 0, n - 1);
 }
 
-fn sampleAt(x: i32, y: i32, c: i32) -> f32 {
-  if (sim.wrap == 2u && (
-    x < 0 || y < 0 || x >= i32(sim.width) || y >= i32(sim.height)
-  )) {
-    return 0.0;
-  }
-  let sx = wrapCoord(x, i32(sim.width));
-  let sy = wrapCoord(y, i32(sim.height));
-  return src[cellBase(sx, sy) + c];
-}
+${sampleAt}
 
 fn setCell(x: i32, y: i32, c: i32, v: f32) {
   dst[cellBase(x, y) + c] = v;
